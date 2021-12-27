@@ -206,7 +206,7 @@
  */
 
 /**
- * @typedef {Partial<ProposalRecord>} Proposal
+ * @typedef {Partial<ProposalRecord>}   Proposal
  *
  * @typedef {{give: AmountKeywordRecord,
  *            want: AmountKeywordRecord,
