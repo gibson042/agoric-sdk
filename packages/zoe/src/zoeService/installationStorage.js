@@ -13,9 +13,11 @@ export const makeInstallationStorage = (chargeZoeFee, installFeeAmount) => {
   const installations = new WeakSet();
 
   /**
-   * Create an installation by permanently storing the bundle. The code will be
-   * evaluated once when creating a zcfZygote, then the start() function will be
-   * called each time an instance is started.
+   * Create an installation by permanently storing the bundle. The code is
+   * currently evaluated each time it is used to make a new instance of a
+   * contract. When SwingSet supports zygotes, the code will be evaluated once
+   * when creating a zcfZygote, then the start() function will be called each
+   * time an instance is started.
    */
   /** @type {InstallFeePurseRequired} */
   const install = async (bundle, feePurse) => {
