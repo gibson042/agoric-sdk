@@ -1,34 +1,34 @@
 // @ts-check
 
-import { AmountPattern } from '@agoric/ertp';
+import { AmountShape } from '@agoric/ertp';
 import { M } from '@agoric/store';
 
-export const ExitOnDemandPattern = harden({ onDemand: null });
+export const ExitOnDemandShape = harden({ onDemand: null });
 
-export const ExitWaivedPattern = harden({ waived: null });
+export const ExitWaivedShape = harden({ waived: null });
 
-export const ExitAfterDeadlinePattern = harden({
+export const ExitAfterDeadlineShape = harden({
   afterDeadline: { timer: M.remotable(), deadline: M.nat() },
 });
 
-export const ExitRulePattern = M.or(
-  ExitOnDemandPattern,
-  ExitWaivedPattern,
-  ExitAfterDeadlinePattern,
+export const ExitRuleShape = M.or(
+  ExitOnDemandShape,
+  ExitWaivedShape,
+  ExitAfterDeadlineShape,
 );
 
 export const KeywordRecordPatternOf = valuePatt =>
   M.recordOf(M.string(), valuePatt);
 
-export const AmountKeywordRecordPattern = KeywordRecordPatternOf(AmountPattern);
+export const AmountKeywordRecordShape = KeywordRecordPatternOf(AmountShape);
 
-export const PatternKeywordRecordPattern = KeywordRecordPatternOf(M.pattern());
+export const PatternKeywordRecordShape = KeywordRecordPatternOf(M.pattern());
 
-export const ProposalPattern = M.partial(
+export const ProposalShape = M.partial(
   {
-    want: M.or(undefined, PatternKeywordRecordPattern),
-    give: M.or(undefined, AmountKeywordRecordPattern),
-    exit: M.or(undefined, ExitRulePattern),
+    want: M.or(undefined, PatternKeywordRecordShape),
+    give: M.or(undefined, AmountKeywordRecordShape),
+    exit: M.or(undefined, ExitRuleShape),
   },
   {},
 );
