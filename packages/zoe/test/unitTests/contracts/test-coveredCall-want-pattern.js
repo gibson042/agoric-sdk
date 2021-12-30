@@ -182,9 +182,6 @@ test('zoe - coveredCall with swap for invitation', async t => {
         strikePrice: { StrikePrice: M.lte(simoleans(8n)) },
         timeAuthority: timer,
         expirationDate: M.and(M.gte(50n), M.lte(300n)),
-        fee: undefined,
-        zoeTimeAuthority: undefined,
-        expiry: undefined,
       },
     ],
   });
