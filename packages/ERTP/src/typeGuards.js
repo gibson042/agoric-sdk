@@ -1,12 +1,12 @@
 import { M, matches } from '@agoric/store';
 
-export const NatValuePattern = M.nat();
-export const SetValuePattern = M.arrayOf(M.key());
-export const AmountValuePattern = M.or(NatValuePattern, SetValuePattern);
+const NatValueShape = M.nat();
+const SetValueShape = M.arrayOf(M.key());
+const AmountValueShape = M.or(NatValueShape, SetValueShape);
 
-export const AmountPattern = harden({
+export const AmountShape = harden({
   brand: M.remotable(),
-  value: AmountValuePattern,
+  value: AmountValueShape,
 });
 
 /**
@@ -15,7 +15,7 @@ export const AmountPattern = harden({
  * @param {Value} value
  * @returns {value is NatValue}
  */
-const isNatValue = value => matches(value, NatValuePattern);
+const isNatValue = value => matches(value, NatValueShape);
 harden(isNatValue);
 
 /**
@@ -25,7 +25,7 @@ harden(isNatValue);
  * @param {Value} value
  * @returns {value is SetValue}
  */
-const isSetValue = value => matches(value, SetValuePattern);
+const isSetValue = value => matches(value, SetValueShape);
 harden(isSetValue);
 
 export { isNatValue, isSetValue };

@@ -184,7 +184,7 @@
  * resolution.
  *
  * @param {ERef<Payment>} payment
- * @param {Pattern=} optAmountPattern
+ * @param {Pattern=} optAmountShape
  * @returns {Promise<Amount>}
  */
 
@@ -201,7 +201,7 @@
  * resolution.
  *
  * @param {ERef<Payment>} payment
- * @param {Pattern=} optAmountPattern
+ * @param {Pattern=} optAmountShape
  * @returns {Promise<Payment>}
  */
 
@@ -392,7 +392,7 @@
 /**
  * @callback DepositFacetReceive
  * @param {Payment} payment
- * @param {Pattern=} optAmountPattern
+ * @param {Pattern=} optAmountShape
  * @returns {Amount}
  */
 
@@ -409,7 +409,7 @@
 /**
  * @callback PurseDeposit
  * @param {Payment} payment
- * @param {Pattern=} optAmountPattern
+ * @param {Pattern=} optAmountShape
  * @returns {Amount}
  */
 
