@@ -4,7 +4,7 @@ import { assert, details as X, q } from '@agoric/assert';
 import { AmountMath, getAssetKind } from '@agoric/ertp';
 import { assertRecord } from '@agoric/marshal';
 import { assertKey, assertPattern, fit, isKey } from '@agoric/store';
-import { ProposalPattern } from './typeGuards.js';
+import { ProposalShape } from './typeGuards.js';
 import { arrayToObj } from './objArrayConversion.js';
 
 import '../exported.js';
@@ -96,7 +96,7 @@ export const coerceAmountKeywordRecord = (
 };
 
 /**
- * Just checks residual issues after matching ProposalPattern.
+ * Just checks residual issues after matching ProposalShape.
  * Only known residual issue is verifying that it only has one of the
  * optional properties.
  *
@@ -164,7 +164,7 @@ export const cleanProposal = (proposal, getAssetKindByBrand) => {
     give: cleanedGive,
     exit,
   });
-  fit(cleanedProposal, ProposalPattern);
+  fit(cleanedProposal, ProposalShape);
   assertExit(exit);
   assertKeywordNotInBoth(cleanedWant, cleanedGive);
   return cleanedProposal;
