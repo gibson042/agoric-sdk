@@ -32,10 +32,10 @@ export const defaultBeansPerVatCreation =
 // Fees are denominated in units of $1 RUN.
 export const defaultBeansPerFeeUnit = 1_000_000_000_000n; // $1
 
-export const defaultBeansPerInboundTx = defaultBeansPerFeeUnit / 100_000n; // $0.00001
-export const defaultBeansPerMessage = defaultBeansPerFeeUnit / 1_000_000n; // $0.000001
-export const defaultBeansPerMessageByte = defaultBeansPerFeeUnit / 50_000_000n; // $0.0000002
-export const defaultBeansPerMinFeeDebit = defaultBeansPerFeeUnit / 4n; // $0.25
+export const defaultBeansPerInboundTx = defaultBeansPerFeeUnit / 100n; // $0.01
+export const defaultBeansPerMessage = defaultBeansPerFeeUnit / 1_000n; // $0.001
+export const defaultBeansPerMessageByte = defaultBeansPerFeeUnit / 50_000n; // $0.0002
+export const defaultBeansPerMinFeeDebit = defaultBeansPerFeeUnit / 5n; // $0.2
 
 export const defaultBeansPerUnit = [
   makeStringBeans(BeansPerFeeUnit, defaultBeansPerFeeUnit),
