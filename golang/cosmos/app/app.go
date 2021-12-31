@@ -622,13 +622,6 @@ func NewAgoricApp(
 	app.MountTransientStores(tkeys)
 	app.MountMemoryStores(memKeys)
 
-	callToControllerDuringAnte := func(ctx sdk.Context, str string) (string, error) {
-		// We use SwingSet-level metering to charge the user for the call.
-		app.MustInitController(ctx)
-		defer vm.SetControllerContext(ctx)()
-		return sendToController(true, str)
-	}
-
 	anteHandler, err := NewAnteHandler(
 		HandlerOptions{
 			HandlerOptions: ante.HandlerOptions{
@@ -639,7 +632,7 @@ func NewAgoricApp(
 				SigGasConsumer:  ante.DefaultSigVerificationGasConsumer,
 			},
 			IBCChannelkeeper: app.IBCKeeper.ChannelKeeper,
-			CallToController: callToControllerDuringAnte,
+			AdmissionData:    app.SwingSetKeeper,
 		},
 	)
 	if err != nil {

@@ -30,6 +30,8 @@ type Keeper struct {
 	CallToController func(ctx sdk.Context, str string) (string, error)
 }
 
+var _ types.SwingSetKeeper = &Keeper{}
+
 // A prefix of bytes, since KVStores can't handle empty slices as keys.
 var keyPrefix = []byte{':'}
 
@@ -74,6 +76,61 @@ func (k Keeper) GetParams(ctx sdk.Context) (params types.Params) {
 
 func (k Keeper) SetParams(ctx sdk.Context, params types.Params) {
 	k.paramSpace.SetParamSet(ctx, &params)
+}
+
+func (k Keeper) GetBeansPerUnit(ctx sdk.Context) map[string]sdk.Uint {
+	params := k.GetParams(ctx)
+	beansPerUnit := make(map[string]sdk.Uint, len(params.BeansPerUnit))
+	for _, bpu := range params.BeansPerUnit {
+		beansPerUnit[bpu.Key] = bpu.Beans
+	}
+	return beansPerUnit
+}
+
+func (k Keeper) GetBeansOwing(ctx sdk.Context, addr sdk.AccAddress) sdk.Uint {
+	path := "beansOwing." + addr.String()
+	value := k.GetStorage(ctx, path)
+	if value == "" {
+		return sdk.ZeroUint()
+	}
+	return sdk.NewUintFromString(value)
+}
+
+func (k Keeper) SetBeansOwing(ctx sdk.Context, addr sdk.AccAddress, beans sdk.Uint) {
+	path := "beansOwing." + addr.String()
+	k.SetStorage(ctx, path, beans.String())
+}
+
+func (k Keeper) ChargeBeans(ctx sdk.Context, addr sdk.AccAddress, beans sdk.Uint) error {
+	beansPerUnit := k.GetBeansPerUnit(ctx)
+
+	owing := k.GetBeansOwing(ctx, addr)
+	owing = owing.Add(beans)
+
+	// Find the minimum debit.
+	beansPerMinFeeDebit := beansPerUnit[types.BeansPerMinFeeDebit]
+	beansToDebit := owing.Quo(beansPerMinFeeDebit)
+	nowOwing := owing.Mod(beansPerMinFeeDebit)
+
+	// Convert the debit to coins.
+	beansPerFeeUnitDec := sdk.NewDecFromBigInt(beansPerUnit[types.BeansPerFeeUnit].BigInt())
+	beansToDebitDec := sdk.NewDecFromBigInt(beansToDebit.BigInt())
+	feeUnitPrice := k.GetParams(ctx).FeeUnitPrice
+	feeDecCoins := sdk.NewDecCoinsFromCoins(feeUnitPrice...).MulDec(beansToDebitDec).QuoDec(beansPerFeeUnitDec)
+
+	// Charge the account.
+	// NOTE: We assume that BeansPerMinFeeDebit is a multiple of BeansPerFeeUnit.
+	feeCoins, _ := feeDecCoins.TruncateDecimal()
+	if !feeCoins.IsZero() {
+		err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, addr, types.ModuleName, feeCoins)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Record the new owing value.
+	k.SetBeansOwing(ctx, addr, nowOwing)
+	return nil
 }
 
 func (k Keeper) GetBalance(ctx sdk.Context, addr sdk.AccAddress, denom string) sdk.Coin {
