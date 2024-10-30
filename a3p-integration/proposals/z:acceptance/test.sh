@@ -29,7 +29,7 @@ trap '
     grep -E "cosmic-swingset-bootstrap-block-start|cosmic-swingset-begin-block" "$SLOGFILE" | head -n 5 || true
     echo
     echo last 500 slogfile lines:
-    tail -n 500 "$SLOGFILE" || true
+    tail -n 500 "$SLOGFILE" | sed "p; s/.*//;" || true
     rm -fr "$SLOGFILE"
   fi
 ' EXIT

@@ -1,5 +1,8 @@
+/// <reference types="node" />
 /* eslint-env node */
 
+import '@endo/init';
+import { makePromiseKit } from '@endo/promise-kit';
 import {
   boardSlottingMarshaller,
   makeFromBoard,
@@ -22,9 +25,12 @@ import {
   mkTemp,
   VALIDATORADDR,
 } from '@agoric/synthetic-chain';
+import { spawn } from 'node:child_process';
 import fsp from 'node:fs/promises';
+import { Readable } from 'node:stream';
 import { NonNullish } from './errors.js';
 import { getBalances } from './utils.js';
+export { deepMapObject } from '@agoric/internal';
 
 // Export these from synthetic-chain?
 const USDC_DENOM = NonNullish(process.env.USDC_DENOM);
@@ -33,6 +39,76 @@ const PSM_PAIR = NonNullish(process.env.PSM_PAIR).replace('.', '-');
 /**
  * @import {Coin} from '@agoric/cosmic-proto/cosmos/base/v1beta1/coin.js';
  */
+
+/**
+ * @typedef {object} SpawnResult
+ * @property {number | null} status
+ * @property {Buffer | null} stdout
+ * @property {Buffer | null} stderr
+ * @property {string | null} signal
+ * @property {Error | null} error
+ */
+
+/**
+ * Launch a child process with optional standard input, because I can't use
+ * execa for some reason.
+ *
+ * @param { string[] } cmd
+ * @param { {input?: Parameters<typeof Readable.from>[0]} & Parameters<typeof spawn>[2] } options
+ * @returns { Promise<SpawnResult & ({error: Error} | {status: number} | {signal: string})> }
+ */
+const spawnKit = async ([cmd, ...args], { input, ...options } = {}) => {
+  const child = spawn(cmd, args, options);
+  /** @type {{stdout: Buffer[], stderr: Buffer[]}} */
+  const outChunks = { stdout: [], stderr: [] };
+  const exitKit = makePromiseKit();
+  const inKit = child.stdin && makePromiseKit();
+  const outKit = child.stdout && makePromiseKit();
+  const errKit = child.stderr && makePromiseKit();
+  // cf. https://nodejs.org/docs/latest/api/child_process.html#child_processspawnsynccommand-args-options
+  /** @type {SpawnResult} */
+  const result = {
+    status: null,
+    stdout: null,
+    stderr: null,
+    signal: null,
+    error: null,
+  };
+  child.on('error', err => {
+    result.error = err;
+    // An exit event *might* be coming, so wait a tick.
+    setImmediate(() => exitKit.resolve());
+  });
+  child.on('exit', (exitCode, signal) => {
+    result.status = exitCode;
+    result.signal = signal;
+    exitKit.resolve();
+  });
+  /** @type {(emitter: import('node:events').EventEmitter, kit: PromiseKit, msg: string) => void} */
+  const rejectOnError = (emitter, kit, msg) =>
+    emitter.on('error', err => kit.reject(Error(msg, { cause: err })));
+  /** @typedef {[string, Readable, Buffer[], PromiseKit]} ReadableKit */
+  for (const [label, stream, chunks, kit] of /** @type {ReadableKit[]} */ ([
+    ['stdout', child.stdout, outChunks.stdout, outKit],
+    ['stderr', child.stderr, outChunks.stderr, errKit],
+  ])) {
+    if (!stream) continue;
+    rejectOnError(stream, kit, `failed reading from ${q(cmd)} ${label}`);
+    stream.on('data', chunk => chunks.push(chunk));
+    stream.on('end', () => kit.resolve());
+  }
+  if (child.stdin) {
+    rejectOnError(child.stdin, inKit, `failed writing to ${q(cmd)} stdin`);
+    Readable.from(input || []).pipe(child.stdin);
+    child.stdin.on('finish', () => inKit.resolve());
+  } else if (input) {
+    throw Error(`missing ${q(cmd)} stdin`);
+  }
+  await Promise.all([exitKit, inKit, outKit, errKit].map(kit => kit?.promise));
+  if (outKit) result.stdout = Buffer.concat(outChunks.stdout);
+  if (errKit) result.stderr = Buffer.concat(outChunks.stderr);
+  return result;
+};
 
 /**
  * @typedef {object} PsmMetrics
@@ -370,14 +446,17 @@ export const sendOfferAgoric = async (address, offerPromise) => {
   const offer = await offerPromise;
   await fsp.writeFile(offerPath, offer);
 
-  return agoric.wallet(
+  // Dive below agoric.wallet(...).
+  return spawnKit([
+    'agoric',
+    'wallet',
     '--keyring-backend=test',
     'send',
     '--offer',
     offerPath,
     '--from',
     address,
-  );
+  ]);
 };
 
 /**
@@ -394,8 +473,17 @@ export const psmSwap = async (address, params, io) => {
   const offerId = `${address}-psm-swap-${now}`;
   const newParams = ['psm', ...params, '--offerId', offerId];
   const offerPromise = executeCommand(agopsLocation, newParams);
-  const stdout = await sendOfferAgoric(address, offerPromise);
-  console.log('psmSwap wallet send output', stdout);
+  const { status, stdout, stderr, signal, error } = await sendOfferAgoric(
+    address,
+    offerPromise,
+  );
+  console.log('psmSwap `agoric wallet send` results', {
+    status,
+    stdout: stdout?.toString(),
+    stderr: stderr?.toString(),
+    signal,
+    error,
+  });
 
   await waitUntilOfferResult(address, offerId, true, io, {
     errorMessage: `${offerId} not succeeded`,
