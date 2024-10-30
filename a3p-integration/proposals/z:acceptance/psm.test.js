@@ -28,13 +28,14 @@ import {
   checkGovParams,
   checkSwapExceedMintLimit,
   checkSwapSucceeded,
+  deepMapObject,
   getPsmMetrics,
   implementPsmGovParamChange,
   initializeNewUser,
   maxMintBelowLimit,
   psmSwap,
 } from './test-lib/psm-lib.js';
-import { deepMapObject, getBalances } from './test-lib/utils.js';
+import { getBalances } from './test-lib/utils.js';
 
 /**
  * Given either an array of [key, value] or
