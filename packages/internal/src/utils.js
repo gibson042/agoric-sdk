@@ -1,5 +1,9 @@
 // @ts-check
 // @jessie-check
+// TODO: Rename to ses-utils and move functionality that doesn't need a
+// hardened environment to js-utils, which could then take over this
+// path. The split is necessary because some test files have dependencies
+// that aren't currently compatible with hardening.
 
 import { q, Fail, makeError, annotateError, X } from '@endo/errors';
 import { deeplyFulfilled, isObject } from '@endo/marshal';
@@ -51,55 +55,6 @@ export const deeplyFulfilledObject = async obj => {
   isObject(obj) || Fail`param must be an object`;
   return deeplyFulfilled(obj);
 };
-
-/**
- * @param {any} value
- * @param {string | undefined} name
- * @param {object | undefined} container
- * @param {(value: any, name: string, record: object) => any} mapper
- * @returns {any}
- */
-const deepMapObjectInternal = (value, name, container, mapper) => {
-  if (container && typeof name === 'string') {
-    const mapped = mapper(value, name, container);
-    if (mapped !== value) {
-      return mapped;
-    }
-  }
-
-  if (typeof value !== 'object' || !value) {
-    return value;
-  }
-
-  let wasMapped = false;
-  const mappedEntries = Object.entries(value).map(([innerName, innerValue]) => {
-    const mappedInnerValue = deepMapObjectInternal(
-      innerValue,
-      innerName,
-      value,
-      mapper,
-    );
-    wasMapped ||= mappedInnerValue !== innerValue;
-    return [innerName, mappedInnerValue];
-  });
-
-  return wasMapped ? Object.fromEntries(mappedEntries) : value;
-};
-
-/**
- * Traverses a record object structure deeply, calling a replacer for each
- * enumerable string property values of an object. If none of the values are
- * changed, the original object is used as-is, maintaining its identity.
- *
- * When an object is found as a property value, the replacer is first called on
- * it. If not replaced, the object is then traversed.
- *
- * @param {object} obj
- * @param {(value: any, name: string, record: object) => any} mapper
- * @returns {object}
- */
-export const deepMapObject = (obj, mapper) =>
-  deepMapObjectInternal(obj, undefined, undefined, mapper);
 
 /**
  * Tolerate absence of AggregateError in e.g. xsnap.

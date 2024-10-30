@@ -363,13 +363,14 @@ export const initializeNewUser = async (name, fund, io) => {
  *
  * @param {string} address
  * @param {Promise<string>} offerPromise
+ * @returns {Promise<string>}
  */
 export const sendOfferAgoric = async (address, offerPromise) => {
   const offerPath = await mkTemp('agops.XXX');
   const offer = await offerPromise;
   await fsp.writeFile(offerPath, offer);
 
-  await agoric.wallet(
+  return agoric.wallet(
     '--keyring-backend=test',
     'send',
     '--offer',
@@ -393,7 +394,8 @@ export const psmSwap = async (address, params, io) => {
   const offerId = `${address}-psm-swap-${now}`;
   const newParams = ['psm', ...params, '--offerId', offerId];
   const offerPromise = executeCommand(agopsLocation, newParams);
-  await sendOfferAgoric(address, offerPromise);
+  const stdout = await sendOfferAgoric(address, offerPromise);
+  console.log('psmSwap wallet send output', stdout);
 
   await waitUntilOfferResult(address, offerId, true, io, {
     errorMessage: `${offerId} not succeeded`,

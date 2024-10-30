@@ -12,6 +12,8 @@
  * 6 - Make sure mint limit is adhered
  */
 
+import test from 'ava';
+import { deepMapObject } from '@agoric/internal';
 import {
   agd,
   agoric,
@@ -20,7 +22,6 @@ import {
   GOV2ADDR,
 } from '@agoric/synthetic-chain';
 import { waitUntilAccountFunded } from '@agoric/client-utils';
-import test from 'ava';
 import { NonNullish } from './test-lib/errors.js';
 import {
   adjustBalancesIfNotProvisioned,
@@ -35,6 +36,67 @@ import {
   psmSwap,
 } from './test-lib/psm-lib.js';
 import { getBalances } from './test-lib/utils.js';
+
+/**
+ * Given either an array of [key, value] or
+ * { [labelKey]: string, [valueKey]: unknown } entries, or a
+ * Record<LabelString, Value> object, log a concise representation similar to
+ * the latter but hiding implementation details of any embedded remotables.
+ */
+export const logKeyedNumerics = (t, label, data) => {
+  const entries = Array.isArray(data) ? [...data] : Object.entries(data);
+  /** @type {[labelKey: PropertyKey, valueKey: PropertyKey]} */
+  let shape;
+  for (let i = 0; i < entries.length; i += 1) {
+    let entry = entries[i];
+    if (!Array.isArray(entry)) {
+      // Determine which key of a two-property "entry object" (e.g.,
+      // {denom, amount} or {brand, value} is the label and which is the value
+      // (which may be of type object or number or bigint or string).
+      if (!shape) {
+        const entryKeys = Object.keys(entry);
+        t.is(
+          entryKeys.length,
+          2,
+          `not shaped like a record entry: {${entryKeys}}`,
+        );
+        const numericKeyIndex = entryKeys.findIndex(
+          k =>
+            typeof entry[k] === 'object' ||
+            (entry[k] !== '' && !Number.isNaN(Number(entry[k]))),
+        );
+        t.not(
+          numericKeyIndex,
+          undefined,
+          `no numeric-valued property: {${entryKeys}}={${Object.values(entry).map(String)}}`,
+        );
+        shape = numericKeyIndex === 1 ? entryKeys : entryKeys.reverse();
+      }
+      // Convert that object to a [key, value] entry array.
+      entries[i] = shape.map(k => entry[k]);
+      entry = entries[i];
+    }
+    // Simplify remotables in the value.
+    entry[1] = deepMapObject(entry[1], value => {
+      const tag =
+        value && typeof value === 'object' && value[Symbol.toStringTag];
+      return tag
+        ? Object.defineProperty({}, Symbol.toStringTag, { value: tag })
+        : value;
+    });
+  }
+  t.log(
+    label,
+    shape ? `{ [${shape[0]}]: ${shape[1]} }` : '',
+    Object.fromEntries(entries),
+  );
+  // TODO gibson: Remove this temporary hedge against t.log not being visible upon timeout.
+  console.log(
+    label,
+    shape ? `{ [${shape[0]}]: ${shape[1]} }` : '',
+    Object.fromEntries(entries),
+  );
+};
 
 // Export these from synthetic-chain?
 const USDC_DENOM = NonNullish(process.env.USDC_DENOM);
@@ -137,18 +199,18 @@ test.serial('swap into IST', async t => {
   } = psmTestSpecs;
 
   const psmTrader = await getUser(name);
+  t.log('TRADER', psmTrader);
 
-  const [metricsBefore, balances] = await Promise.all([
-    getPsmMetrics(anchor),
-    getBalances([psmTrader]),
-  ]);
+  const balances = await getBalances([psmTrader]);
+  logKeyedNumerics(t, 'BALANCES', balances);
+  const metricsBefore = await getPsmMetrics(anchor);
+  logKeyedNumerics(t, 'METRICS', metricsBefore);
 
   const balancesBefore = await adjustBalancesIfNotProvisioned(
     balances,
     psmTrader,
   );
-  t.log('METRICS', metricsBefore);
-  t.log('BALANCES', balancesBefore);
+  logKeyedNumerics(t, 'BALANCES_ADJUSTED', balancesBefore);
 
   await psmSwap(
     psmTrader,
@@ -163,6 +225,7 @@ test.serial('swap into IST', async t => {
     ],
     psmSwapIo,
   );
+  logKeyedNumerics(t, 'SWAPPED', []);
 
   await checkSwapSucceeded(t, metricsBefore, balancesBefore, {
     wantMinted: toIst.value,
@@ -187,8 +250,8 @@ test.serial('swap out of IST', async t => {
     getBalances([psmTrader]),
   ]);
 
-  t.log('METRICS', metricsBefore);
-  t.log('BALANCES', balancesBefore);
+  logKeyedNumerics(t, 'METRICS', metricsBefore);
+  logKeyedNumerics(t, 'BALANCES', balancesBefore);
 
   await psmSwap(
     psmTrader,
@@ -237,8 +300,8 @@ test.serial('mint limit is adhered', async t => {
     getBalances([otherAddr]),
   ]);
 
-  t.log('METRICS', metricsBefore);
-  t.log('BALANCES', balancesBefore);
+  logKeyedNumerics(t, 'METRICS', metricsBefore);
+  logKeyedNumerics(t, 'BALANCES', balancesBefore);
 
   const { maxMintableValue, wantFeeValue } = await maxMintBelowLimit(anchor);
   const maxMintFeesAccounted = Math.floor(

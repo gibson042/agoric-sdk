@@ -2,6 +2,7 @@
 import test from 'ava';
 
 import { Far } from '@endo/far';
+import { deepMapObject } from '../src/js-utils.js';
 import {
   makeMeasureSeconds,
   assertAllDefined,
@@ -9,7 +10,6 @@ import {
   untilTrue,
   forever,
   deeplyFulfilledObject,
-  deepMapObject,
   synchronizedTee,
 } from '../src/utils.js';
 
