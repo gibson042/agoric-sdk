@@ -989,6 +989,7 @@ export async function launch({
     controller.writeSlogObject({
       type: 'cosmic-swingset-bootstrap-block-start',
       blockTime,
+      params,
     });
 
     await null;
@@ -1221,6 +1222,7 @@ export async function launch({
           blockHeight,
           blockTime,
           inboundQueueStats: inboundQueueMetrics.getStats(),
+          params,
         });
 
         return undefined;
