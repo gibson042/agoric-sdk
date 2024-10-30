@@ -23,13 +23,15 @@ echo ACCEPTANCE TESTING state sync
 ./state-sync-snapshots-test.sh
 export SLOGFILE=/root/slog
 rm -rf "$SLOGFILE"
-trap 'if [ -e "$SLOGFILE" ]; then
-  echo first 5 block-start/begin-block slogfile lines:
-  grep -E "cosmic-swingset-bootstrap-block-start|cosmic-swingset-begin-block" "$SLOGFILE" | head -n 5 || true
-  echo
-  echo last 500 slogfile lines:
-  tail -n 500 "$SLOGFILE" || true
-  rm -fr "$SLOGFILE"
+trap '
+  if [ -e "$SLOGFILE" ]; then
+    echo first 5 block-start/begin-block slogfile lines:
+    grep -E "cosmic-swingset-bootstrap-block-start|cosmic-swingset-begin-block" "$SLOGFILE" | head -n 5 || true
+    echo
+    echo last 500 slogfile lines:
+    tail -n 500 "$SLOGFILE" || true
+    rm -fr "$SLOGFILE"
+  fi
 ' EXIT
 ./genesis-test.sh
 
