@@ -146,12 +146,26 @@ export const makeWalletCommand = async command => {
       } = /** @type {SharedTxOptions & Opts} */ ({ ...wallet.opts(), ...opts });
 
       const offerBody = fs.readFileSync(offer).toString();
-      execSwingsetTransaction(['wallet-action', '--allow-spend', offerBody], {
-        from,
-        dryRun,
-        keyring: { home, backend },
-        ...networkConfig,
-      });
+      const out = execSwingsetTransaction(
+        ['wallet-action', '--allow-spend', offerBody, '--output', 'json'],
+        {
+          from,
+          dryRun,
+          keyring: { home, backend },
+          ...networkConfig,
+        },
+      );
+
+      /** @see sendAction in {@link ../lib/wallet.js} */
+      if (opts.dryRun) return;
+      try {
+        const tx = JSON.parse(out);
+        if (tx.code !== 0) {
+          console.error('failed to send tx', tx);
+        }
+      } catch (err) {
+        console.error('unexpected output', JSON.stringify(out));
+      }
     });
 
   wallet
