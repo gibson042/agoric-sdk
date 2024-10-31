@@ -135,8 +135,9 @@ export const makeWalletCommand = async command => {
     )
     .requiredOption('--offer [filename]', 'path to file with prepared offer')
     .option('--dry-run', 'spit out the command instead of running it')
+    .option('--verbose', 'provide output')
     .action(function (opts) {
-      /** @typedef {{ from: string, offer: string, dryRun: boolean }} Opts */
+      /** @typedef {{ from: string, offer: string, dryRun: boolean, verbose: boolean }} Opts */
       const {
         dryRun,
         from,
@@ -158,14 +159,17 @@ export const makeWalletCommand = async command => {
 
       /** @see sendAction in {@link ../lib/wallet.js} */
       if (opts.dryRun) return;
+      let tx;
       try {
-        const tx = JSON.parse(out);
+        tx = JSON.parse(out);
         if (tx.code !== 0) {
           console.error('failed to send tx', tx);
         }
       } catch (err) {
         console.error('unexpected output', JSON.stringify(out));
+        throw err;
       }
+      if (verbose) console.log(tx);
     });
 
   wallet

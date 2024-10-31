@@ -459,6 +459,7 @@ export const sendOfferAgoric = async (address, offerPromise) => {
     offerPath,
     '--from',
     address,
+    '--verbose',
   ]);
 };
 
