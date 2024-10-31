@@ -30,11 +30,14 @@ import fsp from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { NonNullish } from './errors.js';
 import { getBalances } from './utils.js';
+
 export { deepMapObject } from '@agoric/internal';
 
 // Export these from synthetic-chain?
 const USDC_DENOM = NonNullish(process.env.USDC_DENOM);
 const PSM_PAIR = NonNullish(process.env.PSM_PAIR).replace('.', '-');
+
+const q = JSON.stringify;
 
 /**
  * @import {Coin} from '@agoric/cosmic-proto/cosmos/base/v1beta1/coin.js';

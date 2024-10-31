@@ -42,6 +42,11 @@ import { getBalances } from './test-lib/utils.js';
  * { [labelKey]: string, [valueKey]: unknown } entries, or a
  * Record<LabelString, Value> object, log a concise representation similar to
  * the latter but hiding implementation details of any embedded remotables.
+ *
+ * @param {import('ava').ExecutionContext} t
+ * @param {string} label
+ * @param {Array<[string, unknown] | object> | Record<string, unknown>} data
+ * @returns {void}
  */
 export const logKeyedNumerics = (t, label, data) => {
   const entries = Array.isArray(data) ? [...data] : Object.entries(data);
@@ -86,12 +91,6 @@ export const logKeyedNumerics = (t, label, data) => {
     });
   }
   t.log(
-    label,
-    shape ? `{ [${shape[0]}]: ${shape[1]} }` : '',
-    Object.fromEntries(entries),
-  );
-  // TODO gibson: Remove this temporary hedge against t.log not being visible upon timeout.
-  console.log(
     label,
     shape ? `{ [${shape[0]}]: ${shape[1]} }` : '',
     Object.fromEntries(entries),
