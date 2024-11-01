@@ -277,32 +277,74 @@ jobs:
         run: yarn build
         working-directory: a3p-integration
       - name: run proposals tests
-        run: yarn test
-        working-directory: a3p-integration
-      - name: collect all core eval scripts
-        # Core eval scripts will be copied under /tmp/core_eval_scripts directory
-        # colons in the parent directory name will be replaced with dashes
         run: |
-          find . -type d -path "./a3p-integration/proposals/*/submission" | while read -r dir; do
-            # Get the parent directory name
-            parent_dir=$(basename "$(dirname "$dir")")
-            # Replace colons with dashes in the parent directory name
-            sanitized_parent_dir=${parent_dir//:/-}
-            # Create the destination directory under /tmp/core_eval_scripts if it doesn't exist
-            destination_dir="/tmp/core_eval_scripts/$sanitized_parent_dir"
-            mkdir -p "$destination_dir"
-            # Copy everything from the $dir to the destination directory
-            cp -r "$dir"/* "$destination_dir/"
-            echo "Copied contents of $dir to $destination_dir"
+          if [ ":$SLOGFILE" != : ]; then
+            mkdir -p /root/tmpbin
+            printf >/root/tmpbin/docker '#!/bin/bash
+              # Inherit the SLOGFILE environment variable by replacing
+              # `docker run ...` with `docker run -e SLOGFILE ...`.
+              cmd="%s"
+              if [ ":$1" = :run ]; then
+                shift
+                "$cmd" run -e SLOGFILE "$@"
+              else
+                "$cmd" "$@"
+              fi
+            ' "$(which docker)"
+            chmod a+x /root/tmpbin/docker
+            export PATH="/root/tmpbin:$PATH"
+          fi
+          yarn test
+        working-directory: a3p-integration
+        env:
+          SLOGFILE: /root/test.slog
+      - name: copy a3p-integration
+        if: (success() || failure())
+        run: |
+          # Copy everything from a3p-integration to /tmp/a3p-integration except
+          # `node_modules` and `.yarn`, replacing colons in proposal directory
+          # names with dashes.
+          mkdir -p /tmp/a3p-integration
+          # source descriptors: (a3p-integration subdirectory, depth, filter)
+          SUBSEP="$(printf '\034')"
+          printf "
+            # children of a3p-integration except proposals
+                      $SUBSEP 1 $SUBSEP -not -name proposals
+            # file children of proposals
+            proposals $SUBSEP 1 $SUBSEP -type f
+            # grandchildren of proposals, i.e. a3p-integration/proposals/*/*
+            proposals $SUBSEP 2
+          " \
+          | sed -E 's/^ *|#.*//g; /^[[:space:]]*$/d;' \
+          | while IFS="$SUBSEP" read subdir depth filter; do
+            find a3p-integration/$subdir -mindepth ${depth:-1} -maxdepth ${depth:-1} \
+              -name node_modules -prune -o -name .yarn -prune -o $filter -print \
+            | while read -r path; do
+              dirname="$(dirname -- "$path")"
+              dest="/tmp/$dirname" # $dirname already starts with a3p-integration
+              sanitized="${dest//:/-}"
+              mkdir -p "$sanitized"
+              cp -r "$path" "$sanitized/"
+              echo "Copied $dirname to $sanitized"
+            done \
+            | uniq
           done
-      - name: archive core eval scripts
-        # The core eval scripts can be found at the bottom of `Summary` page of
-        # `Integration tests` workflow once the workflow is completed.
-        # Ref: https://github.com/actions/upload-artifact?tab=readme-ov-file#where-does-the-upload-go
+      # Artifacts can be found at the bottom of `Summary` page of
+      # `Integration tests` workflow once the workflow is completed.
+      # Ref: https://github.com/actions/upload-artifact?tab=readme-ov-file#where-does-the-upload-go
+      - name: archive a3p-integration
+        if: (success() || failure())
         uses: actions/upload-artifact@v4
         with:
-          name: core-eval-scripts
-          path: /tmp/core_eval_scripts
+          name: a3p-integration
+          path: /tmp/a3p-integration
+      - name: archive slogfile
+        if: (success() || failure())
+        uses: actions/upload-artifact@v4
+        with:
+          name: slogfile
+          path: /root/test.slog
+          retention-days: 4
       - name: notify on failure
         if: failure() && github.event_name != 'pull_request'
         uses: ./.github/actions/notify-status
