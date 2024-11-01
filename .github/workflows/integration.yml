@@ -229,6 +229,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      - name: capture runner environment
+        id: env
+        run: |
+          if [ ":$HOME" = : ]; then
+            # Keep the first two path components, e.g. /home/runner.
+            HOME="(pwd | sed -E 's#^(/[^/]+/[^/]+).*#\1#')"
+          fi
+          echo "HOME=$HOME" >> "$GITHUB_OUTPUT"
       - name: free up disk space
         run: |
           # Workaround to provide additional free space for testing.
@@ -301,7 +309,7 @@ jobs:
           yarn test
         working-directory: a3p-integration
         env:
-          SLOGFILE: ${{ format('{0}/../test.slog', github.workspace) }}
+          SLOGFILE: ${{ format('{0}/test.slog', steps.env.outputs.HOME) }}
       - name: copy a3p-integration
         if: (success() || failure())
         run: |
@@ -347,7 +355,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: slogfile
-          path: ${{ format('{0}/../test.slog', github.workspace) }}
+          path: ${{ format('{0}/test.slog', steps.env.outputs.HOME) }}
           retention-days: 4
       - name: notify on failure
         if: failure() && github.event_name != 'pull_request'
