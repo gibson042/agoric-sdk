@@ -284,9 +284,10 @@ jobs:
               # Inherit the SLOGFILE environment variable by replacing
               # `docker run ...` with `docker run -e SLOGFILE ...`.
               cmd="%s"
-              if [ ":$1" = :run ]; then
+              if [ ":$1" = :run -a ":$SLOGFILE" != : ]; then
                 shift
-                "$cmd" run -e SLOGFILE "$@"
+                touch "$SLOGFILE"
+                "$cmd" run -e SLOGFILE -v "$SLOGFILE:$SLOGFILE" "$@"
               else
                 "$cmd" "$@"
               fi
