@@ -158,19 +158,18 @@ export const makeWalletCommand = async command => {
         },
       );
 
-      /** @see sendAction in {@link ../lib/wallet.js} */
-      if (opts.dryRun) return;
-      let tx;
+      // see sendAction in {@link ../lib/wallet.js}
+      if (dryRun || !verbose) return;
       try {
-        tx = JSON.parse(out);
+        const tx = JSON.parse(out);
         if (tx.code !== 0) {
           console.error('failed to send tx', tx);
         }
+        console.log(tx);
       } catch (err) {
         console.error('unexpected output', JSON.stringify(out));
         throw err;
       }
-      if (verbose) console.log(tx);
     });
 
   wallet
