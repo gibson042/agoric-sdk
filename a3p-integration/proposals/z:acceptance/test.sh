@@ -3,6 +3,7 @@ set -ueo pipefail
 
 # Place here any test that should be executed using the executed proposal.
 # The effects of this step are not persisted in further proposal layers.
+export SLOGFILE=/root/slog
 
 # test the state right after the previous proposals
 yarn ava initial.test.js
@@ -21,15 +22,11 @@ yarn ava valueVow.test.js
 
 echo ACCEPTANCE TESTING state sync
 ./state-sync-snapshots-test.sh
-export SLOGFILE=/root/slog
 rm -rf "$SLOGFILE"
 trap '
   if [ -e "$SLOGFILE" ]; then
-    echo first 5 block-start/begin-block slogfile lines:
-    grep -E "cosmic-swingset-bootstrap-block-start|cosmic-swingset-begin-block" "$SLOGFILE" | head -n 5 || true
-    echo
-    echo last 500 slogfile lines:
-    tail -n 500 "$SLOGFILE" | sed "p; s/.*//;" || true
+    echo block-start/begin-block slogfile lines:
+    grep -E "cosmic-swingset-bootstrap-block-start|cosmic-swingset-begin-block" "$SLOGFILE" || true
     rm -fr "$SLOGFILE"
   fi
 ' EXIT
