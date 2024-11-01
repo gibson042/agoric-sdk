@@ -143,6 +143,7 @@ export const makeWalletCommand = async command => {
         from,
         offer,
         home,
+        verbose,
         keyringBackend: backend,
       } = /** @type {SharedTxOptions & Opts} */ ({ ...wallet.opts(), ...opts });
 
