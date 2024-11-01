@@ -42,25 +42,55 @@ export const sleep = (ms, { log = () => {}, setTimeout }) =>
  * @param {() => Promise} operation
  * @param {(result: any) => boolean} condition
  * @param {string} message
- * @param {RetryOptions & {log?: typeof console.log, setTimeout: typeof global.setTimeout}} options
+ * @param {RetryOptions & {holdPromise?: boolean, log?: typeof console.log, setTimeout: typeof global.setTimeout}} options
  */
 export const retryUntilCondition = async (
   operation,
   condition,
   message,
-  { maxRetries = 6, retryIntervalMs = 3500, log = console.log, setTimeout },
+  {
+    maxRetries = 6,
+    retryIntervalMs = 6000,
+    holdPromise,
+    log = console.log,
+    setTimeout,
+  },
 ) => {
   console.log({ maxRetries, retryIntervalMs, message });
-  let retries = 0;
 
   await null; // separate sync prologue
 
+  const timedOut = Symbol('timed out');
+  let retries = 0;
+  /** @type {Promise} */
+  let resultP;
   while (retries < maxRetries) {
     try {
-      const result = await operation();
-      log('RESULT', result);
-      if (condition(result)) {
-        return result;
+      if (!holdPromise || !resultP) {
+        resultP = operation();
+        const makeCleanup = ref => {
+          const cleanup = () => {
+            if (resultP === ref) {
+              resultP = undefined;
+            }
+          };
+          return cleanup;
+        };
+        resultP.catch(() => {}).then(makeCleanup(resultP));
+      }
+      const result = await Promise.race([
+        resultP,
+        // Overload the interval to apply both to and between iterations.
+        sleep(retryIntervalMs, { log() {}, setTimout }).then(() => timedOut),
+      ]);
+      if (result === timedOut) {
+        log(`Attempt ${retries + 1} timed out`);
+        if (!holdPromise) resultP = undefined;
+      } else {
+        log('RESULT', result);
+        if (condition(result)) {
+          return result;
+        }
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -218,7 +248,7 @@ export const waitUntilOfferResult = (
     async () => queryWallet(addr),
     status => checkOfferState(status, waitForPayouts, offerId),
     errorMessage,
-    { maxRetries, retryIntervalMs, log, setTimeout },
+    { maxRetries, retryIntervalMs, holdPromise: true, log, setTimeout },
   );
 };
 

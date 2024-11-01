@@ -11,6 +11,7 @@ import {
   waitUntilOfferResult,
 } from '@agoric/client-utils';
 import { AmountMath } from '@agoric/ertp';
+import { deepMapObject } from '@agoric/internal';
 import {
   addUser,
   agd,
@@ -30,8 +31,6 @@ import fsp from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { NonNullish } from './errors.js';
 import { getBalances } from './utils.js';
-
-export { deepMapObject } from '@agoric/internal';
 
 // Export these from synthetic-chain?
 const USDC_DENOM = NonNullish(process.env.USDC_DENOM);
@@ -111,6 +110,72 @@ const spawnKit = async ([cmd, ...args], { input, ...options } = {}) => {
   if (outKit) result.stdout = Buffer.concat(outChunks.stdout);
   if (errKit) result.stderr = Buffer.concat(outChunks.stderr);
   return result;
+};
+
+/**
+ * Given either an array of [key, value] or
+ * { [labelKey]: string, [valueKey]: unknown } entries, or a
+ * Record<LabelString, Value> object, log a concise representation similar to
+ * the latter but hiding implementation details of any embedded remotables.
+ *
+ * @param {import('ava').ExecutionContext} t
+ * @param {string} label
+ * @param {Array<[string, unknown] | object> | Record<string, unknown>} data
+ * @returns {void}
+ */
+export const logKeyedNumerics = (t, label, data) => {
+  const entries = Array.isArray(data) ? [...data] : Object.entries(data);
+  /** @type {[labelKey: PropertyKey, valueKey: PropertyKey]} */
+  let shape;
+  for (let i = 0; i < entries.length; i += 1) {
+    let entry = entries[i];
+    if (!Array.isArray(entry)) {
+      // Determine which key of a two-property "entry object" (e.g.,
+      // {denom, amount} or {brand, value} is the label and which is the value
+      // (which may be of type object or number or bigint or string).
+      if (!shape) {
+        const entryKeys = Object.keys(entry);
+        t.is(
+          entryKeys.length,
+          2,
+          `not shaped like a record entry: {${entryKeys}}`,
+        );
+        const numericKeyIndex = entryKeys.findIndex(
+          k =>
+            typeof entry[k] === 'object' ||
+            (entry[k] !== '' && !Number.isNaN(Number(entry[k]))),
+        );
+        t.not(
+          numericKeyIndex,
+          undefined,
+          `no numeric-valued property: {${entryKeys}}={${Object.values(entry).map(String)}}`,
+        );
+        shape = numericKeyIndex === 1 ? entryKeys : entryKeys.reverse();
+      }
+      // Convert that object to a [key, value] entry array.
+      entries[i] = shape.map(k => entry[k]);
+      entry = entries[i];
+    }
+    // Simplify remotables in the value.
+    entry[1] = deepMapObject(entry[1], value => {
+      const tag =
+        value && typeof value === 'object' && value[Symbol.toStringTag];
+      return tag
+        ? Object.defineProperty({}, Symbol.toStringTag, { value: tag })
+        : value;
+    });
+  }
+  t.log(
+    label,
+    shape ? `{ [${shape[0]}]: ${shape[1]} }` : '',
+    Object.fromEntries(entries),
+  );
+  // TODO gibson: Remove this temporary hedge against t.log not being visible upon timeout.
+  console.log(
+    label,
+    shape ? `{ [${shape[0]}]: ${shape[1]} }` : '',
+    Object.fromEntries(entries),
+  );
 };
 
 /**
