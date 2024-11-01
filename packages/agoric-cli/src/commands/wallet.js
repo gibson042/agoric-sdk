@@ -161,7 +161,7 @@ export const makeWalletCommand = async command => {
       // see sendAction in {@link ../lib/wallet.js}
       if (dryRun || !verbose) return;
       try {
-        const tx = JSON.parse(out);
+        const tx = JSON.parse(/** @type {string} */ (out));
         if (tx.code !== 0) {
           console.error('failed to send tx', tx);
         }

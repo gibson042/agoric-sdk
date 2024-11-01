@@ -95,6 +95,12 @@ export const logKeyedNumerics = (t, label, data) => {
     shape ? `{ [${shape[0]}]: ${shape[1]} }` : '',
     Object.fromEntries(entries),
   );
+  // TODO gibson: Remove this temporary hedge against t.log not being visible upon timeout.
+  console.log(
+    label,
+    shape ? `{ [${shape[0]}]: ${shape[1]} }` : '',
+    Object.fromEntries(entries),
+  );
 };
 
 // Export these from synthetic-chain?
