@@ -280,8 +280,9 @@ jobs:
         run: |
           if [ ":$SLOGFILE" != : ]; then
             echo "Overriding docker to inherit SLOGFILE $SLOGFILE"
-            mkdir -p /root/tmpbin
-            printf >/root/tmpbin/docker '#!/bin/bash
+            tmpbin="$(pwd | awk '{ i=match($0, "/home/[^/]+"); if(!i) i=match($0, ".*/"); p=substr($0, i, RLENGTH); sub("/$", "", p); print p; }')/tmpbin"
+            mkdir -p "$tmpbin"
+            printf >"$tmpbin/docker" '#!/bin/bash
               # Inherit the SLOGFILE environment variable by replacing
               # `docker run ...` with `docker run -e SLOGFILE ...`.
               cmd="%s"
@@ -294,8 +295,8 @@ jobs:
                 "$cmd" "$@"
               fi
             ' "$(which docker)"
-            chmod a+x /root/tmpbin/docker
-            export PATH="/root/tmpbin:$PATH"
+            chmod a+x "$tmpbin/docker"
+            export PATH="$tmpbin:$PATH"
           fi
           yarn test
         working-directory: a3p-integration
