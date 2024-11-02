@@ -112,6 +112,14 @@ const spawnKit = async ([cmd, ...args], { input, ...options } = {}) => {
   return result;
 };
 
+const spawnResultData = spawnResult => ({
+  status: spawnResult.status,
+  stdout: spawnResult.stdout?.toString(),
+  stderr: spawnResult.stderr?.toString(),
+  signal: spawnResult,
+  error: spawnResult,
+});
+
 /**
  * Given either an array of [key, value] or
  * { [labelKey]: string, [valueKey]: unknown } entries, or a
@@ -541,18 +549,20 @@ export const psmSwap = async (address, params, io) => {
   const now = io.now();
   const offerId = `${address}-psm-swap-${now}`;
   const newParams = ['psm', ...params, '--offerId', offerId];
-  const offerPromise = executeCommand(agopsLocation, newParams);
-  const { status, stdout, stderr, signal, error } = await sendOfferAgoric(
-    address,
-    offerPromise,
+  // const offerPromise = executeCommand(agopsLocation, newParams);
+  const psmResult = await spawnKit([agopsLocation, ...newParams]);
+  console.log(
+    'psmSwap `${agopsLocation} psm ${params[0]}` results',
+    spawnResultData(psmResult),
   );
-  console.log('psmSwap `agoric wallet send` results', {
-    status,
-    stdout: stdout?.toString(),
-    stderr: stderr?.toString(),
-    signal,
-    error,
-  });
+  const sendResult = await sendOfferAgoric(
+    address,
+    psmResult.stdout.toString(),
+  );
+  console.log(
+    'psmSwap `agoric wallet send` results',
+    spawnResultData(sendResult),
+  );
 
   await waitUntilOfferResult(address, offerId, true, io, {
     errorMessage: `${offerId} not succeeded`,
