@@ -606,17 +606,16 @@ const extractBalance = (balances, targetDenom) => {
  */
 export const tryISTBalances = async (t, actualBalance, expectedBalance) => {
   const firstTry = await t.try(
-    (tt, actual, expected) => {
-      tt.deepEqual(actual, expected);
-    },
-    actualBalance,
-    expectedBalance,
+    tt => void tt.is(actualBalance, expectedBalance),
   );
+  if (firstTry.passed) {
+    firstTry.commit();
+    return;
+  }
 
-  if (!firstTry.passed) {
-    firstTry.discard();
-    t.deepEqual(actualBalance + 200000, expectedBalance);
-  } else firstTry.commit();
+  firstTry.discard();
+  t.log('tryISTBalances assuming no batched IST fee', firstTry.errors);
+  t.is(actualBalance + 200000, expectedBalance);
 };
 
 /**
