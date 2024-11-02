@@ -81,7 +81,7 @@ export const retryUntilCondition = async (
       const result = await Promise.race([
         resultP,
         // Overload the interval to apply both to and between iterations.
-        sleep(retryIntervalMs, { log() {}, setTimout }).then(() => timedOut),
+        sleep(retryIntervalMs, { log() {}, setTimeout }).then(() => timedOut),
       ]);
       if (result === timedOut) {
         log(`Attempt ${retries + 1} timed out`);
