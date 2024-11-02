@@ -140,6 +140,8 @@ test.serial('swap into IST', async t => {
   const psmTrader = await getUser(name);
   t.log('TRADER', psmTrader);
 
+  t.log('SWINGSET PARAMS', await agd.query('swingset', 'params'));
+
   const balances = await getBalances([psmTrader]);
   logKeyedNumerics(t, 'BALANCES', balances);
   const metricsBefore = await getPsmMetrics(anchor);
