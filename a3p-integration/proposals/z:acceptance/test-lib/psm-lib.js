@@ -116,8 +116,8 @@ const spawnResultData = spawnResult => ({
   status: spawnResult.status,
   stdout: spawnResult.stdout?.toString(),
   stderr: spawnResult.stderr?.toString(),
-  signal: spawnResult,
-  error: spawnResult,
+  signal: spawnResult.signal,
+  error: spawnResult.error,
 });
 
 /**
