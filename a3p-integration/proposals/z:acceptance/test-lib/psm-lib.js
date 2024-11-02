@@ -19,7 +19,7 @@ import {
   agopsLocation,
   agoric,
   CHAINID,
-  executeCommand,
+  // xxx executeCommand,
   executeOffer,
   getUser,
   GOV1ADDR,
@@ -549,10 +549,10 @@ export const psmSwap = async (address, params, io) => {
   const now = io.now();
   const offerId = `${address}-psm-swap-${now}`;
   const newParams = ['psm', ...params, '--offerId', offerId];
-  // const offerPromise = executeCommand(agopsLocation, newParams);
+  // xxx const offerPromise = executeCommand(agopsLocation, newParams);
   const psmResult = await spawnKit([agopsLocation, ...newParams]);
   console.log(
-    'psmSwap `${agopsLocation} psm ${params[0]}` results',
+    `psmSwap \`${agopsLocation} psm ${params[0]}\` results`,
     spawnResultData(psmResult),
   );
   const sendResult = await sendOfferAgoric(
