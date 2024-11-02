@@ -281,26 +281,34 @@ jobs:
             exit 1
           fi
         working-directory: a3p-integration
+      - name: patch a3p-integration dependencies
+        run: 'yarn patch-package || ! [ -d patches ]'
+        working-directory: a3p-integration
       - name: build proposals tests
         run: yarn build
         working-directory: a3p-integration
       - name: run proposals tests
         run: |
-          if [ ":$SLOGFILE" != : ]; then
-            echo "Overriding docker to inherit SLOGFILE $SLOGFILE"
-            tmpbin="$(pwd | awk '{ i=match($0, "/home/[^/]+"); if(!i) i=match($0, ".*/"); p=substr($0, i, RLENGTH); sub("/$", "", p); print p; }')/tmpbin"
+          if [ ":$SLOGFILE" != : -o ":$AGD_LOG_FILE" != : ]; then
+            echo "Overriding docker to inherit SLOGFILE ${SLOGFILE-} and/or AGD_LOG_FILE ${AGD_LOG_FILE-}"
+            tmpbin="$HOME/tmpbin"
             mkdir -p "$tmpbin"
             printf >"$tmpbin/docker" '#!/bin/bash
-              # Inherit the SLOGFILE environment variable by replacing
-              # `docker run ...` with `docker run -e SLOGFILE ...`.
+              set -ueo pipefail
+              # Inherit SLOGFILE and/or AGD_LOG_FILE environment variables by replacing
+              # `docker run ...` with `docker run -e SLOGFILE -e AGD_LOG_FILE ...`.
               cmd="%s"
-              if [ ":$1" = :run -a ":$SLOGFILE" != : ]; then
-                shift
-                echo "docker run with SLOGFILE $SLOGFILE"
-                touch "$SLOGFILE"
-                "$cmd" run -e SLOGFILE -v "$SLOGFILE:$SLOGFILE" "$@"
-              else
+              if [ "${1-}" != run ]; then
                 "$cmd" "$@"
+              else
+                shift
+                echo "docker run with SLOGFILE SLOGFILE ${SLOGFILE-} and/or AGD_LOG_FILE ${AGD_LOG_FILE-}"
+                declare -a opts
+                for var in SLOGFILE AGD_LOG_FILE; do
+                  f="${!v-}"
+                  [ -n "$f" ] && touch "$f" && opts+=("-e" "$var" "-v" "$f:$f")
+                done
+                "$cmd" run "${opts[@]}" "$@"
               fi
             ' "$(which docker)"
             chmod a+x "$tmpbin/docker"
@@ -309,7 +317,9 @@ jobs:
           yarn test
         working-directory: a3p-integration
         env:
+          HOME: ${{ steps.env.outputs.HOME }}
           SLOGFILE: ${{ format('{0}/test.slog', steps.env.outputs.HOME) }}
+          AGD_LOG_FILE: ${{ format('{0}/agd.log', steps.env.outputs.HOME) }}
       - name: copy a3p-integration
         if: (success() || failure())
         run: |
@@ -356,6 +366,13 @@ jobs:
         with:
           name: slogfile
           path: ${{ format('{0}/test.slog', steps.env.outputs.HOME) }}
+          retention-days: 4
+      - name: archive agd log
+        if: (success() || failure())
+        uses: actions/upload-artifact@v4
+        with:
+          name: agd.log
+          path: ${{ format('{0}/agd.log', steps.env.outputs.HOME) }}
           retention-days: 4
       - name: notify on failure
         if: failure() && github.event_name != 'pull_request'

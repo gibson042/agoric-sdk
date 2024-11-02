@@ -1,0 +1,17 @@
+diff --git a/node_modules/@agoric/synthetic-chain/dist/upgrade-test-scripts/env_setup.sh b/node_modules/@agoric/synthetic-chain/dist/upgrade-test-scripts/env_setup.sh
+index b222584..26ab21d 100755
+--- a/node_modules/@agoric/synthetic-chain/dist/upgrade-test-scripts/env_setup.sh
++++ b/node_modules/@agoric/synthetic-chain/dist/upgrade-test-scripts/env_setup.sh
+@@ -86,7 +86,11 @@ startAgd() {
+   # precondition check
+   await_agd_startable 10
+ 
+-  agd start --log_level warn "$@" &
++  if [ -n "${AGD_LOG_FILE-}" ]; then
++    agd start --log_level warn "$@" &> "$AGD_LOG_FILE" &
++  else
++    agd start --log_level warn "$@" &
++  fi
+   AGD_PID=$!
+   echo $AGD_PID >$HOME/.agoric/agd.pid
+   wait_for_bootstrap
