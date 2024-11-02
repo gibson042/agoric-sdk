@@ -514,7 +514,7 @@ export const initializeNewUser = async (name, fund, io) => {
  * vstorage. In situations like this "agoric wallet send" seems a better choice as it doesn't depend on following user's vstorage wallet path
  *
  * @param {string} address
- * @param {Promise<string>} offerPromise
+ * @param {string | Promise<string>} offerPromise
  * @returns {Promise<string>}
  */
 export const sendOfferAgoric = async (address, offerPromise) => {
