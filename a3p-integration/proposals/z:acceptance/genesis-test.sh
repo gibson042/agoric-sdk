@@ -13,7 +13,7 @@ export_genesis() {
   fi
 
   agd export --export-dir "$GENESIS_EXPORT_DIR" $GENESIS_HEIGHT_ARG "$@"
-  CONFIG_FILE="$GENESIS_EXPORT_DIR/config.toml"
+  CONFIG_FILE="$GENESIS_EXPORT_DIR/app.toml"
   echo "Enabling Prometheus in $CONFIG_FILE ..."
   BACKUP_FILE="$(./test-lib/enable-prometheus.sh -b "$CONFIG_FILE")"
   diff -u "$BACKUP_FILE" "$CONFIG_FILE" || true

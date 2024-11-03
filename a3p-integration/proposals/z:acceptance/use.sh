@@ -9,8 +9,7 @@ source /usr/src/upgrade-test-scripts/env_setup.sh
 # later steps, such as the "test" step, or further proposal layers.
 
 # Enable Prometheus metrics.
-# https://github.com/cometbft/cometbft/blob/main/docs/explanation/core/metrics.md
-CONFIG_FILE="$HOME/.agoric/config/config.toml"
+CONFIG_FILE="$HOME/.agoric/config/app.toml"
 echo "Enabling Prometheus in $CONFIG_FILE ..."
 echo "# Before" && cat "$CONFIG_FILE"
 BACKUP_FILE="$(./test-lib/enable-prometheus.sh -b "$CONFIG_FILE")"
@@ -22,5 +21,5 @@ startAgd
 waitForBlock 3
 set -v
 # https://prometheus.io/docs/instrumenting/exposition_formats/#text-based-format
-curl -sSL http://localhost:26660/metrics \
+curl -sSL 'http://localhost:1317/metrics?format=prometheus' \
   | grep -E '^[[:space:]]*#[[:space:]]*(HELP|TYPE)\b' || true

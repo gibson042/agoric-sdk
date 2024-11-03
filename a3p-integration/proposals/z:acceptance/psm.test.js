@@ -139,7 +139,7 @@ test.serial('swap into IST', async t => {
 
   const rejectionPatt = /admission_refused|inbound_not_allowed/;
   const getTxRejectionMetrics = async () => {
-    const resp = await fetch('http://localhost:26660/metrics');
+    const resp = await fetch('http://localhost:1317/metrics?format=prometheus');
     const metrics = await (resp.ok ? resp.text() : Promise.reject(resp));
     return metrics.split('\n').filter(line => line.match(rejectionPatt));
   };
