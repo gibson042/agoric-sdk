@@ -60,6 +60,6 @@ killAgd
 startAgd
 waitForBlock 3
 set -v
-# https://prometheus.io/docs/instrumenting/exposition_formats/
+# https://prometheus.io/docs/instrumenting/exposition_formats/#text-based-format
 curl -sSL http://localhost:26660/metrics \
   | grep -E '^[[:space:]]*#[[:space:]]*(HELP|TYPE)\b' || true
