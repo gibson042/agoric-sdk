@@ -54,7 +54,7 @@ cat "$CONFIG_FILE" | awk '
   }
 ' > "$TMP_FILE"
 echo "# Diff"
-diff -u "$CONFIG_FILE" "$TMP_FILE"
+diff -u "$CONFIG_FILE" "$TMP_FILE" || true
 set -x
 # redirection preserves file permissions
 if ! cat "$TMP_FILE" > "$CONFIG_FILE"; then
