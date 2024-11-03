@@ -1,35 +1,36 @@
 #!/bin/bash
 set -ueo pipefail
 
+source ./env_setup.sh
+
 # Place here any actions that should happen after the upgrade has executed. The
 # actions are executed in the upgraded chain software and the effects are
 # persisted in the generated image for the upgrade, so they can be used in
 # later steps, such as the "test" step, or further proposal layers.
 
 # Enable Prometheus metrics.
-# https://github.com/tendermint/tendermint/blob/master/docs/nodes/metrics.md
+# https://github.com/cometbft/cometbft/blob/main/docs/explanation/core/metrics.md
 CONFIG_FILE="$HOME/.agoric/config/config.toml"
 echo "Enabling Prometheus in $CONFIG_FILE ..."
-cat "$CONFIG_FILE" | awk 'BEGIN { print "# Before"; } 1'
+echo "# Before"
+cat "$CONFIG_FILE"
 TMP_FILE="$(mktemp)"
-cp "$CONFIG_FILE" "$TMP_FILE"
-cat "$TMP_FILE" | awk '
-  BEGIN { print "# After"; }
+cat "$CONFIG_FILE" | awk '
   BEGIN { FS = "[[:space:]]*=[[:space:]]*"; }
   !done {
     if (match($0, /^[[][^]]*[]]/)) {
       section = substr($0, RSTART + 1, RLENGTH - 2);
-      if (current_section == "telemetry") {
+      if (current_section == "instrumentation") {
         done = 1;
-        print "enabled = true";
+        print "prometheus = true";
         if (blanks != "") print substr(blanks, 2, length(blanks) - 1);
       }
       current_section = section;
-    } else if (current_section == "telemetry") {
-      if ($1 == "enabled" && NF > 1) {
+    } else if (current_section == "instrumentation") {
+      if ($1 == "prometheus" && NF > 1) {
         done = 1;
         if (!match($2, /^true([[:space:]]|$)/)) {
-          print "enabled = true";
+          print "prometheus = true";
           next;
         }
       } else if (match($0, /^[[:space:]]*(#.*)?$/)) {
@@ -42,13 +43,19 @@ cat "$TMP_FILE" | awk '
   END {
     if (done) {
       # noop
-    } else if (current_section == "telemetry") {
-      print "enabled = true";
+    } else if (current_section == "instrumentation") {
+      print "prometheus = true";
     } else {
       print "";
-      print "[telemetry]";
-      print "enabled = true";
+      print "[instrumentation]";
+      print "prometheus = true";
       }
   }
-' | tee "$CONFIG_FILE"
-rm -v "$TMP_FILE"
+' > "$TMP_FILE"
+echo "# Diff"
+diff -u "$CONFIG_FILE" "$TMP_FILE"
+cat "$TMP_FILE" > "$CONFIG_FILE" # redirection preserves file permissions
+killAgd
+startAgd
+waitForBlock 3
+curl -sS http://localhost:26660/metrics | head
