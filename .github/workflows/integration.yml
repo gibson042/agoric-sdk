@@ -295,16 +295,16 @@ jobs:
             mkdir -p "$tmpbin"
             printf >"$tmpbin/docker" '#!/bin/bash
               set -ueo pipefail
-              # Inherit SLOGFILE and/or AGD_LOG_FILE environment variables by replacing
-              # `docker run ...` with `docker run -e SLOGFILE -e AGD_LOG_FILE ...`.
+              # Inherit environment variables by replacing `docker run ...` with
+              # `docker run -e SLOGFILE -e AGD_LOG_FILE ...`.
               cmd="%s"
               if [ "${1-}" != run ]; then
                 "$cmd" "$@"
               else
                 shift
-                echo "docker run with SLOGFILE ${SLOGFILE-} and/or AGD_LOG_FILE ${AGD_LOG_FILE-}"
+                echo "docker run with SLOGFILE ${SLOGFILE-}, AGD_LOG_FILE ${AGD_LOG_FILE-}, XXX_GIBSON ${XXX_GIBSON-}"
                 declare -a opts
-                for var in SLOGFILE AGD_LOG_FILE; do
+                for var in SLOGFILE AGD_LOG_FILE XXX_GIBSON; do
                   f="${!var-}"
                   [ -n "$f" ] && touch "$f" && opts+=("-e" "$var" "-v" "$f:$f")
                 done
@@ -318,6 +318,7 @@ jobs:
         working-directory: a3p-integration
         env:
           SLOGFILE: ${{ format('{0}/test.slog', steps.env.outputs.HOME) }}
+          XXX_GIBSON: '1'
       - name: copy a3p-integration
         if: (success() || failure())
         run: |
