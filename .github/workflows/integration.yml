@@ -305,7 +305,7 @@ jobs:
                 echo "docker run with SLOGFILE SLOGFILE ${SLOGFILE-} and/or AGD_LOG_FILE ${AGD_LOG_FILE-}"
                 declare -a opts
                 for var in SLOGFILE AGD_LOG_FILE; do
-                  f="${!v-}"
+                  f="${!var-}"
                   [ -n "$f" ] && touch "$f" && opts+=("-e" "$var" "-v" "$f:$f")
                 done
                 "$cmd" run "${opts[@]}" "$@"
