@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"io"
+	stdlog "log"
 	"strings"
 
 	sdkioerrors "cosmossdk.io/errors"
@@ -69,11 +70,17 @@ func chargeAdmission(
 ) error {
 	beans := beansPerUnit[BeansPerInboundTx]
 	beans = beans.Add(beansPerUnit[BeansPerMessage].MulUint64((uint64(len(msgs)))))
+	size := uint64(0)
 	for _, msg := range msgs {
-		beans = beans.Add(beansPerUnit[BeansPerMessageByte].MulUint64(uint64(len(msg))))
+		msgLen := uint64(len(msg))
+		size += msgLen
+		beans = beans.Add(beansPerUnit[BeansPerMessageByte].MulUint64(msgLen))
 	}
 	beans = beans.Add(beansPerUnit[BeansPerStorageByte].MulUint64(storageLen))
 
+	stdlog.Printf("xxx gibson chargeAdmission %v, %v + %v/msg * %v + %v/byte * %v = %v\n", addr,
+		beansPerUnit[BeansPerInboundTx], beansPerUnit[BeansPerMessage], len(msgs), beansPerUnit[BeansPerMessageByte], size,
+		beans)
 	return keeper.ChargeBeans(ctx, beansPerUnit, addr, beans)
 }
 
@@ -94,17 +101,20 @@ func checkSmartWalletProvisioned(
 	switch walletState {
 	case SmartWalletStateProvisioned:
 		// The address already has a smart wallet
+		stdlog.Println("xxx gibson checkSmartWalletProvisioned", addr, "provisioned")
 		return nil
 	case SmartWalletStatePending:
 		// A provision (either explicit or automatic) may be pending execution in
 		// the controller, or if we ever allow multiple swingset messages per
 		// transaction, a previous message may have provisioned the wallet.
+		stdlog.Println("xxx gibson checkSmartWalletProvisioned", addr, "pending")
 		return nil
 	default:
 		// Charge for the smart wallet.
 		// This is a separate charge from the smart wallet action which triggered the check
 		// TODO: Currently this call does not mark the smart wallet provisioning as
 		// pending, resulting in multiple provisioning charges for the owner.
+		stdlog.Println("xxx gibson checkSmartWalletProvisioned", addr, "none")
 		return keeper.ChargeForSmartWallet(ctx, beansPerUnit, addr)
 	}
 }
@@ -267,6 +277,7 @@ func NewMsgWalletSpendAction(owner sdk.AccAddress, spendAction string) *MsgWalle
 
 // CheckAdmissibility implements the vm.ControllerAdmissionMsg interface.
 func (msg MsgWalletSpendAction) CheckAdmissibility(ctx sdk.Context, data interface{}) error {
+	stdlog.Println("xxx gibson WalletSpendAction.CheckAdmissibility", msg.Owner)
 	keeper, ok := data.(SwingSetKeeper)
 	if !ok {
 		return sdkioerrors.Wrapf(sdkerrors.ErrInvalidRequest, "data must be a SwingSetKeeper, not a %T", data)

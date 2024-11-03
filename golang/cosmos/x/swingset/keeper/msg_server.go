@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+	stdlog "log"
 
 	"github.com/Agoric/agoric-sdk/golang/cosmos/vm"
 	"github.com/Agoric/agoric-sdk/golang/cosmos/x/swingset/types"
@@ -100,6 +101,7 @@ func (keeper msgServer) WalletSpendAction(goCtx context.Context, msg *types.MsgW
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	err := keeper.provisionIfNeeded(ctx, msg.Owner)
+	stdlog.Println("xxx gibson WalletSpendAction", msg.Owner, err)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +113,7 @@ func (keeper msgServer) WalletSpendAction(goCtx context.Context, msg *types.MsgW
 	// fmt.Fprintf(os.Stderr, "Context is %+v\n", ctx)
 	err = keeper.routeAction(ctx, msg, action)
 	if err != nil {
+		stdlog.Println("xxx gibson WalletSpendAction routeAction error", msg.Owner, err.Error())
 		return nil, err
 	}
 	return &types.MsgWalletSpendActionResponse{}, nil
@@ -132,6 +135,7 @@ func (keeper msgServer) provisionIfNeeded(ctx sdk.Context, owner sdk.AccAddress)
 	// not guaranteed to succeed (e.g. lack of provision pool funds)
 	walletState := keeper.GetSmartWalletState(ctx, owner)
 	if walletState == types.SmartWalletStateProvisioned {
+		stdlog.Println("xxx gibson provisionIfNeeded", owner, "already provisioned")
 		return nil
 	}
 
@@ -147,6 +151,7 @@ func (keeper msgServer) provisionIfNeeded(ctx sdk.Context, owner sdk.AccAddress)
 	}
 
 	err := keeper.routeAction(ctx, msg, action)
+	stdlog.Println("xxx gibson provisionIfNeeded routeAction error", owner, err)
 	// fmt.Fprintln(os.Stderr, "Returned from SwingSet", out, err)
 	if err != nil {
 		return err

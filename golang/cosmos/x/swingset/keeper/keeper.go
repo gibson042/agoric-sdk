@@ -331,9 +331,12 @@ func (k Keeper) ChargeBeans(
 	// Charge the account immediately if they owe more than BeansPerMinFeeDebit.
 	// NOTE: We assume that BeansPerMinFeeDebit is a multiple of BeansPerFeeUnit.
 	feeCoins, _ := feeDecCoins.TruncateDecimal()
+	stdlog.Printf("xxx gibson ChargeBeans %v, owing %v + %v = %v => %v [transfer %v %v]\n", addr,
+		wasOwing, beans, nowOwing, remainderOwing, beansToDebit, feeCoins)
 	if !feeCoins.IsZero() {
 		err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, addr, k.feeCollectorName, feeCoins)
 		if err != nil {
+			stdlog.Println("xxx gibson ChargeBeans error", addr, err.Error())
 			return err
 		}
 	}
@@ -352,6 +355,7 @@ func (k Keeper) ChargeForSmartWallet(
 ) error {
 	beans := beansPerUnit[types.BeansPerSmartWalletProvision]
 	err := k.ChargeBeans(ctx, beansPerUnit, addr, beans)
+	stdlog.Println("xxx gibson ChargeForSmartWallet", addr, beans, err)
 	if err != nil {
 		return err
 	}
