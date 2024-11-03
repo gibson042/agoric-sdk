@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ueo pipefail
 
-source ./env_setup.sh
+source /usr/src/upgrade-test-scripts/env_setup.sh
 
 # Place here any actions that should happen after the upgrade has executed. The
 # actions are executed in the upgraded chain software and the effects are
