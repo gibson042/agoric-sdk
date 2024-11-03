@@ -137,6 +137,19 @@ test.serial('swap into IST', async t => {
     govParams: { wantMintedFeeVal },
   } = psmTestSpecs;
 
+  const rejectionPatt = /admission_refused|inbound_not_allowed/;
+  const getRejectionMetrics = async () => {
+    const resp = await fetch('http://localhost:26660/metrics');
+    const metrics = await (resp.ok ? resp.text() : Promise.reject(resp));
+    return metrics.split('\n').filter(line => line.match(rejectionPatt));
+  };
+  const metricsBefore = await getRejectionMetrics();
+  t.log('REJECTED_TRANSACTIONS', metricsBefore);
+  t.teardown(async () => {
+    const metricsAfter = await getRejectionMetrics();
+    t.log('REJECTED_TRANSACTIONS_AFTER', metricsAfter);
+  });
+
   const psmTrader = await getUser(name);
   t.log('TRADER', psmTrader);
 
