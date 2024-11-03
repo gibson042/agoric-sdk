@@ -319,7 +319,6 @@ jobs:
         env:
           HOME: ${{ steps.env.outputs.HOME }}
           SLOGFILE: ${{ format('{0}/test.slog', steps.env.outputs.HOME) }}
-          AGD_LOG_FILE: ${{ format('{0}/agd.log', steps.env.outputs.HOME) }}
       - name: copy a3p-integration
         if: (success() || failure())
         run: |
@@ -368,7 +367,7 @@ jobs:
           path: ${{ format('{0}/test.slog', steps.env.outputs.HOME) }}
           retention-days: 4
       - name: archive agd log
-        if: (success() || failure())
+        if: false && (success() || failure())
         uses: actions/upload-artifact@v4
         with:
           name: agd.log
