@@ -30,6 +30,7 @@ cat "$CONFIG_FILE" | awk '
       if ($1 == "prometheus" && NF > 1) {
         done = 1;
         if (!match($2, /^true([[:space:]]|$)/)) {
+          if (blanks != "") print substr(blanks, 2, length(blanks) - 1);
           print "prometheus = true";
           next;
         }
