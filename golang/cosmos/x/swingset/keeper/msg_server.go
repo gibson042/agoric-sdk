@@ -101,7 +101,7 @@ func (keeper msgServer) WalletSpendAction(goCtx context.Context, msg *types.MsgW
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	err := keeper.provisionIfNeeded(ctx, msg.Owner)
-	stdlog.Println("xxx gibson WalletSpendAction", msg.Owner, err)
+	stdlog.Println("xxx gibson WalletSpendAction ready", msg.Owner, err)
 	if err != nil {
 		return nil, err
 	}
@@ -112,8 +112,12 @@ func (keeper msgServer) WalletSpendAction(goCtx context.Context, msg *types.MsgW
 	}
 	// fmt.Fprintf(os.Stderr, "Context is %+v\n", ctx)
 	err = keeper.routeAction(ctx, msg, action)
+	highPriorityQueueItems, hpqErr := keeper.Keeper.vstorageKeeper.GetQueueItems(ctx, StoragePathHighPriorityQueue)
+	actionQueueItems, aqErr := keeper.Keeper.vstorageKeeper.GetQueueItems(ctx, StoragePathActionQueue)
+	stdlog.Printf("xxx gibson WalletSpendAction routeAction %v: error %v, queues %#q %v %#q %v\n",
+		msg.Owner, err,
+		highPriorityQueueItems, hpqErr, actionQueueItems, aqErr)
 	if err != nil {
-		stdlog.Println("xxx gibson WalletSpendAction routeAction error", msg.Owner, err.Error())
 		return nil, err
 	}
 	return &types.MsgWalletSpendActionResponse{}, nil
@@ -151,7 +155,11 @@ func (keeper msgServer) provisionIfNeeded(ctx sdk.Context, owner sdk.AccAddress)
 	}
 
 	err := keeper.routeAction(ctx, msg, action)
-	stdlog.Println("xxx gibson provisionIfNeeded routeAction error", owner, err)
+	highPriorityQueueItems, hpqErr := keeper.Keeper.vstorageKeeper.GetQueueItems(ctx, StoragePathHighPriorityQueue)
+	actionQueueItems, aqErr := keeper.Keeper.vstorageKeeper.GetQueueItems(ctx, StoragePathActionQueue)
+	stdlog.Printf("xxx gibson provisionIfNeeded routeAction %v: error %v, queues %#q %v %#q %v\n",
+		owner, err,
+		highPriorityQueueItems, hpqErr, actionQueueItems, aqErr)
 	// fmt.Fprintln(os.Stderr, "Returned from SwingSet", out, err)
 	if err != nil {
 		return err
