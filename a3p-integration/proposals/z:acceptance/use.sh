@@ -55,7 +55,12 @@ cat "$CONFIG_FILE" | awk '
 ' > "$TMP_FILE"
 echo "# Diff"
 diff -u "$CONFIG_FILE" "$TMP_FILE"
-cat "$TMP_FILE" > "$CONFIG_FILE" # redirection preserves file permissions
+# redirection preserves file permissions
+if ! cat "$TMP_FILE" > "$CONFIG_FILE"; then
+  ls -l "$CONFIG_FILE" "$TMP_FILE"
+  whoami
+  sudo cat "$TMP_FILE" > "$CONFIG_FILE"
+fi
 killAgd
 startAgd
 waitForBlock 3
