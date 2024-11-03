@@ -16,7 +16,7 @@ src="$1"
 tmp="$(mktemp "$(basename "$src").XXXXXXXXXX.bak")"
 cp "$src" "$tmp"
 # redirection preserves file permissions
-cat "$tmp" | awk >"$src" '
+cat "$tmp" | awk > "$src" '
   BEGIN { FS = "[[:space:]]*=[[:space:]]*"; }
   !done {
     if (match($0, /^[[][^]]*[]]/)) {
