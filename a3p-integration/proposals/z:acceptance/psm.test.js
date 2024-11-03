@@ -153,7 +153,9 @@ test.serial('swap into IST', async t => {
   const psmTrader = await getUser(name);
   t.log('TRADER', psmTrader);
 
-  t.log('SWINGSET PARAMS', await agd.query('swingset', 'params'));
+  // Print swingset params without the depth truncation of t.log.
+  const params = await agd.query('swingset', 'params');
+  t.log('SWINGSET PARAMS', JSON.stringify(params, null, 2));
 
   const balances = await getBalances([psmTrader]);
   logKeyedNumerics(t, 'BALANCES', balances);
