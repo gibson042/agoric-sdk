@@ -289,8 +289,8 @@ jobs:
         working-directory: a3p-integration
       - name: run proposals tests
         run: |
-          if [ ":$SLOGFILE" != : -o ":$AGD_LOG_FILE" != : ]; then
-            echo "Overriding docker to inherit SLOGFILE ${SLOGFILE-} and/or AGD_LOG_FILE ${AGD_LOG_FILE-}"
+          if [ "$SLOGFILE:$AGD_LOG_FILE:$XXX_GIBSON" != :: ]; then
+            echo "Overriding docker to inherit SLOGFILE ${SLOGFILE-}, AGD_LOG_FILE ${AGD_LOG_FILE-}, XXX_GIBSON ${XXX_GIBSON-}"
             tmpbin="$HOME/tmpbin"
             mkdir -p "$tmpbin"
             printf >"$tmpbin/docker" '#!/bin/bash
@@ -304,9 +304,13 @@ jobs:
                 shift
                 echo "docker run with SLOGFILE ${SLOGFILE-}, AGD_LOG_FILE ${AGD_LOG_FILE-}, XXX_GIBSON ${XXX_GIBSON-}"
                 declare -a opts
-                for var in SLOGFILE AGD_LOG_FILE XXX_GIBSON; do
+                for var in SLOGFILE AGD_LOG_FILE; do
                   f="${!var-}"
                   [ -n "$f" ] && touch "$f" && opts+=("-e" "$var" "-v" "$f:$f")
+                done
+                for var in XXX_GIBSON; do
+                  f="${!var-}"
+                  [ -n "$f" ] && opts+=("-e" "$var")
                 done
                 "$cmd" run "${opts[@]}" "$@"
               fi
