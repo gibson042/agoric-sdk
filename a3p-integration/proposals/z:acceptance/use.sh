@@ -12,50 +12,11 @@ source /usr/src/upgrade-test-scripts/env_setup.sh
 # https://github.com/cometbft/cometbft/blob/main/docs/explanation/core/metrics.md
 CONFIG_FILE="$HOME/.agoric/config/config.toml"
 echo "Enabling Prometheus in $CONFIG_FILE ..."
-echo "# Before"
-cat "$CONFIG_FILE"
-TMP_FILE="$(mktemp)"
-cat "$CONFIG_FILE" | awk '
-  BEGIN { FS = "[[:space:]]*=[[:space:]]*"; }
-  !done {
-    if (match($0, /^[[][^]]*[]]/)) {
-      section = substr($0, RSTART + 1, RLENGTH - 2);
-      if (current_section == "instrumentation") {
-        done = 1;
-        print "prometheus = true";
-        if (blanks != "") print substr(blanks, 2, length(blanks) - 1);
-      }
-      current_section = section;
-    } else if (current_section == "instrumentation") {
-      if ($1 == "prometheus" && NF > 1) {
-        done = 1;
-        if (!match($2, /^true([[:space:]]|$)/)) {
-          if (blanks != "") print substr(blanks, 2, length(blanks) - 1);
-          print "prometheus = true";
-          next;
-        }
-      } else if (match($0, /^[[:space:]]*(#.*)?$/)) {
-        blanks = blanks "\n" $0;
-        next;
-      }
-    }
-  }
-  1
-  END {
-    if (done) {
-      # noop
-    } else if (current_section == "instrumentation") {
-      print "prometheus = true";
-    } else {
-      print "";
-      print "[instrumentation]";
-      print "prometheus = true";
-      }
-  }
-' > "$TMP_FILE"
+echo "# Before" && cat "$CONFIG_FILE"
+BACKUP_FILE="$(./test-lib/enable-prometheus.sh -k "$CONFIG_FILE")"
 echo "# Diff"
-diff -u "$CONFIG_FILE" "$TMP_FILE" || true
-cat "$TMP_FILE" > "$CONFIG_FILE" # redirection preserves file permissions
+diff -u "$BACKUP_FILE" "$CONFIG_FILE" || true
+rm -fr -- "$BACKUP_FILE"
 killAgd
 startAgd
 waitForBlock 3
