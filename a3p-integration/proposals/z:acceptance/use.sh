@@ -55,14 +55,11 @@ cat "$CONFIG_FILE" | awk '
 ' > "$TMP_FILE"
 echo "# Diff"
 diff -u "$CONFIG_FILE" "$TMP_FILE" || true
-set -x
-# redirection preserves file permissions
-if ! cat "$TMP_FILE" > "$CONFIG_FILE"; then
-  ls -l "$CONFIG_FILE" "$TMP_FILE"
-  whoami
-  sudo cat "$TMP_FILE" > "$CONFIG_FILE"
-fi
+cat "$TMP_FILE" > "$CONFIG_FILE" # redirection preserves file permissions
 killAgd
 startAgd
 waitForBlock 3
-curl -sS http://localhost:26660/metrics | head
+set -v
+# https://prometheus.io/docs/instrumenting/exposition_formats/
+curl -sSL http://localhost:26660/metrics \
+  | grep -E '^[[:space:]]*#[[:space:]]*(HELP|TYPE)\b' || true
