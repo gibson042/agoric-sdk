@@ -302,7 +302,7 @@ jobs:
                 "$cmd" "$@"
               else
                 shift
-                echo "docker run with SLOGFILE SLOGFILE ${SLOGFILE-} and/or AGD_LOG_FILE ${AGD_LOG_FILE-}"
+                echo "docker run with SLOGFILE ${SLOGFILE-} and/or AGD_LOG_FILE ${AGD_LOG_FILE-}"
                 declare -a opts
                 for var in SLOGFILE AGD_LOG_FILE; do
                   f="${!var-}"
