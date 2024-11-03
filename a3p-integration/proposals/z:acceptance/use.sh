@@ -13,7 +13,7 @@ source /usr/src/upgrade-test-scripts/env_setup.sh
 CONFIG_FILE="$HOME/.agoric/config/config.toml"
 echo "Enabling Prometheus in $CONFIG_FILE ..."
 echo "# Before" && cat "$CONFIG_FILE"
-BACKUP_FILE="$(./test-lib/enable-prometheus.sh -k "$CONFIG_FILE")"
+BACKUP_FILE="$(./test-lib/enable-prometheus.sh -b "$CONFIG_FILE")"
 echo "# Diff"
 diff -u "$BACKUP_FILE" "$CONFIG_FILE" || true
 rm -fr -- "$BACKUP_FILE"
