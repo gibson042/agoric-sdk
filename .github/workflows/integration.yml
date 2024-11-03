@@ -317,7 +317,6 @@ jobs:
           yarn test
         working-directory: a3p-integration
         env:
-          HOME: ${{ steps.env.outputs.HOME }}
           SLOGFILE: ${{ format('{0}/test.slog', steps.env.outputs.HOME) }}
       - name: copy a3p-integration
         if: (success() || failure())
