@@ -7,7 +7,6 @@ import (
 	stdlog "log"
 	"math"
 	"os"
-	"slices"
 	"strings"
 
 	sdkmath "cosmossdk.io/math"
@@ -334,10 +333,11 @@ func (k Keeper) ChargeBeans(
 	// Charge the account immediately if they owe more than BeansPerMinFeeDebit.
 	// NOTE: We assume that BeansPerMinFeeDebit is a multiple of BeansPerFeeUnit.
 	feeCoins, _ := feeDecCoins.TruncateDecimal()
-	xxx_gibson := slices.IndexFunc(os.Environ(), func(kv string) bool {
+	xxx_gibson := false
+	for _, kv := range os.Environ() {
 		key, value, ok := strings.Cut(kv, "=")
-		return ok && key == "XXX_GIBSON" && value != "" && value != "0"
-	}) >= 0
+		xxx_gibson = xxx_gibson || ok && key == "XXX_GIBSON" && value != "" && value != "0"
+	}
 	if xxx_gibson {
 		stdlog.Printf("xxx gibson ChargeBeans %v, owing %v + %v = %v => %v [transfer %v %v]\n",
 			addr, wasOwing, beans, nowOwing, remainderOwing, beansToDebit, feeCoins)
@@ -366,10 +366,11 @@ func (k Keeper) ChargeForSmartWallet(
 ) error {
 	beans := beansPerUnit[types.BeansPerSmartWalletProvision]
 	err := k.ChargeBeans(ctx, beansPerUnit, addr, beans)
-	xxx_gibson := slices.IndexFunc(os.Environ(), func(kv string) bool {
+	xxx_gibson := false
+	for _, kv := range os.Environ() {
 		key, value, ok := strings.Cut(kv, "=")
-		return ok && key == "XXX_GIBSON" && value != "" && value != "0"
-	}) >= 0
+		xxx_gibson = xxx_gibson || ok && key == "XXX_GIBSON" && value != "" && value != "0"
+	}
 	if xxx_gibson {
 		stdlog.Println("xxx gibson ChargeForSmartWallet", addr, beans, err)
 	}

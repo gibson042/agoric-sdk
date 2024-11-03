@@ -7,7 +7,6 @@ import (
 	"io"
 	stdlog "log"
 	"os"
-	"slices"
 	"strings"
 
 	sdkioerrors "cosmossdk.io/errors"
@@ -80,10 +79,11 @@ func chargeAdmission(
 	}
 	beans = beans.Add(beansPerUnit[BeansPerStorageByte].MulUint64(storageLen))
 
-	xxx_gibson := slices.IndexFunc(os.Environ(), func(kv string) bool {
+	xxx_gibson := false
+	for _, kv := range os.Environ() {
 		key, value, ok := strings.Cut(kv, "=")
-		return ok && key == "XXX_GIBSON" && value != "" && value != "0"
-	}) >= 0
+		xxx_gibson = xxx_gibson || ok && key == "XXX_GIBSON" && value != "" && value != "0"
+	}
 	if xxx_gibson {
 		stdlog.Printf(
 			"xxx gibson chargeAdmission %v, %v + %v/msg * %v + %v/byte * %v = %v\n", addr,
@@ -109,10 +109,11 @@ func checkSmartWalletProvisioned(
 ) error {
 	walletState := keeper.GetSmartWalletState(ctx, addr)
 
-	xxx_gibson := slices.IndexFunc(os.Environ(), func(kv string) bool {
+	xxx_gibson := false
+	for _, kv := range os.Environ() {
 		key, value, ok := strings.Cut(kv, "=")
-		return ok && key == "XXX_GIBSON" && value != "" && value != "0"
-	}) >= 0
+		xxx_gibson = xxx_gibson || ok && key == "XXX_GIBSON" && value != "" && value != "0"
+	}
 	switch walletState {
 	case SmartWalletStateProvisioned:
 		// The address already has a smart wallet
@@ -298,10 +299,11 @@ func NewMsgWalletSpendAction(owner sdk.AccAddress, spendAction string) *MsgWalle
 
 // CheckAdmissibility implements the vm.ControllerAdmissionMsg interface.
 func (msg MsgWalletSpendAction) CheckAdmissibility(ctx sdk.Context, data interface{}) error {
-	xxx_gibson := slices.IndexFunc(os.Environ(), func(kv string) bool {
+	xxx_gibson := false
+	for _, kv := range os.Environ() {
 		key, value, ok := strings.Cut(kv, "=")
-		return ok && key == "XXX_GIBSON" && value != "" && value != "0"
-	}) >= 0
+		xxx_gibson = xxx_gibson || ok && key == "XXX_GIBSON" && value != "" && value != "0"
+	}
 	if xxx_gibson {
 		stdlog.Println("xxx gibson WalletSpendAction.CheckAdmissibility", msg.Owner)
 	}

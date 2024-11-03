@@ -4,7 +4,6 @@ import (
 	"context"
 	stdlog "log"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/Agoric/agoric-sdk/golang/cosmos/vm"
@@ -104,10 +103,11 @@ func (keeper msgServer) WalletSpendAction(goCtx context.Context, msg *types.MsgW
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	err := keeper.provisionIfNeeded(ctx, msg.Owner)
-	xxx_gibson := slices.IndexFunc(os.Environ(), func(kv string) bool {
+	xxx_gibson := false
+	for _, kv := range os.Environ() {
 		key, value, ok := strings.Cut(kv, "=")
-		return ok && key == "XXX_GIBSON" && value != "" && value != "0"
-	}) >= 0
+		xxx_gibson = xxx_gibson || ok && key == "XXX_GIBSON" && value != "" && value != "0"
+	}
 	if xxx_gibson {
 		stdlog.Println("xxx gibson WalletSpendAction ready", msg.Owner, err)
 	}
@@ -149,10 +149,11 @@ func (keeper msgServer) provisionIfNeeded(ctx sdk.Context, owner sdk.AccAddress)
 	// been fully provisioned by the controller. This is because a provision is
 	// not guaranteed to succeed (e.g. lack of provision pool funds)
 	walletState := keeper.GetSmartWalletState(ctx, owner)
-	xxx_gibson := slices.IndexFunc(os.Environ(), func(kv string) bool {
+	xxx_gibson := false
+	for _, kv := range os.Environ() {
 		key, value, ok := strings.Cut(kv, "=")
-		return ok && key == "XXX_GIBSON" && value != "" && value != "0"
-	}) >= 0
+		xxx_gibson = xxx_gibson || ok && key == "XXX_GIBSON" && value != "" && value != "0"
+	}
 	if walletState == types.SmartWalletStateProvisioned {
 		if xxx_gibson {
 			stdlog.Println("xxx gibson provisionIfNeeded", owner, "already provisioned")
