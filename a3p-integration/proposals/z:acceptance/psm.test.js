@@ -138,16 +138,16 @@ test.serial('swap into IST', async t => {
   } = psmTestSpecs;
 
   const rejectionPatt = /admission_refused|inbound_not_allowed/;
-  const getRejectionMetrics = async () => {
+  const getTxRejectionMetrics = async () => {
     const resp = await fetch('http://localhost:26660/metrics');
     const metrics = await (resp.ok ? resp.text() : Promise.reject(resp));
     return metrics.split('\n').filter(line => line.match(rejectionPatt));
   };
-  const metricsBefore = await getRejectionMetrics();
-  t.log('REJECTED_TRANSACTIONS', metricsBefore);
+  const txMetricsBefore = await getTxRejectionMetrics();
+  t.log('REJECTED_TRANSACTIONS', txMetricsBefore);
   t.teardown(async () => {
-    const metricsAfter = await getRejectionMetrics();
-    t.log('REJECTED_TRANSACTIONS_AFTER', metricsAfter);
+    const txMetricsAfter = await getTxRejectionMetrics();
+    t.log('REJECTED_TRANSACTIONS_AFTER', txMetricsAfter);
   });
 
   const psmTrader = await getUser(name);
