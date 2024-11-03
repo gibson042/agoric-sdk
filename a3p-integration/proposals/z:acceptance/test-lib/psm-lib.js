@@ -605,9 +605,9 @@ const extractBalance = (balances, targetDenom) => {
  * @param {number} expectedBalance
  */
 export const tryISTBalances = async (t, actualBalance, expectedBalance) => {
-  const firstTry = await t.try(
-    tt => void tt.is(actualBalance, expectedBalance),
-  );
+  const firstTry = await t.try(tt => {
+    tt.is(actualBalance, expectedBalance);
+  });
   if (firstTry.passed) {
     firstTry.commit();
     return;
