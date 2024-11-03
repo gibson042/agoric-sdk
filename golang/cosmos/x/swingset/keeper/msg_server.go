@@ -115,6 +115,15 @@ func (keeper msgServer) WalletSpendAction(goCtx context.Context, msg *types.MsgW
 		return nil, err
 	}
 
+	if xxx_gibson {
+		defer func() {
+			if x := recover(); x != nil {
+				stdlog.Println("xxx gibson WalletSpendAction caught panic", msg.Owner, x)
+				panic(x)
+			}
+			stdlog.Println("xxx gibson WalletSpendAction done", msg.Owner)
+		}()
+	}
 	action := walletSpendAction{
 		Owner:       msg.Owner.String(),
 		SpendAction: msg.SpendAction,
