@@ -10,6 +10,7 @@ import (
 	"github.com/Agoric/agoric-sdk/golang/cosmos/vm"
 	"github.com/Agoric/agoric-sdk/golang/cosmos/x/swingset/types"
 	vstoragetesting "github.com/Agoric/agoric-sdk/golang/cosmos/x/vstorage/testing"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
@@ -101,15 +102,62 @@ type walletSpendAction struct {
 	SpendAction      string `json:"spendAction"`
 }
 
-func (keeper msgServer) WalletSpendAction(goCtx context.Context, msg *types.MsgWalletSpendAction) (*types.MsgWalletSpendActionResponse, error) {
-	ctx := sdk.UnwrapSDKContext(goCtx)
+type MultiStoreSpy struct {
+	storetypes.MultiStore
+}
+func (spy MultiStoreSpy) GetKVStore(storeKey storetypes.StoreKey) storetypes.KVStore {
+	return KVStoreSpy{spy.MultiStore.GetKVStore(storeKey), storeKey.Name()}
+}
 
-	err := keeper.provisionIfNeeded(ctx, msg.Owner)
+type KVStoreSpy struct {
+	storetypes.KVStore
+	name string
+}
+func (spy KVStoreSpy) Get(key []byte) []byte {
+	got := spy.KVStore.Get(key)
+	stdlog.Printf("xxx gibson KVStore(%#q).Get(%#q) = %#q [k+v = %d]\n",
+		spy.name, key, got, len(key) + len(got))
+	return got
+}
+func (spy KVStoreSpy) Set(key, value []byte) {
+	spy.KVStore.Set(key, value)
+	stdlog.Printf("xxx gibson KVStore(%#q).Set(%#q, %#q) [k+v = %d]\n",
+		spy.name, key, value, len(key) + len(got))
+	return got
+}
+func (spy KVStoreSpy) Has(key []byte) bool {
+	found := spy.KVStore.Has(key)
+	stdlog.Printf("xxx gibson KVStore(%#q).Has(%#q) = %v\n",
+		spy.name, key, found)
+	return found
+}
+func (spy KVStoreSpy) Delete(key []byte) {
+	spy.KVStore.Delete(key)
+	stdlog.Printf("xxx gibson KVStore(%#q).Delete(%#q)\n",
+		spy.name, key)
+}
+
+type GasMeterSpy struct {
+	storetypes.GasMeter
+}
+func (spy GasMeterSpy) ConsumeGas(amount Gas, descriptor string) {
+	stdlog.Printf("xxx gibson ConsumeGas %v %v\n", descriptor, amount)
+	spy.GasMeter.ConsumeGas(amount, descriptor)
+}
+
+func (keeper msgServer) WalletSpendAction(goCtx context.Context, msg *types.MsgWalletSpendAction) (*types.MsgWalletSpendActionResponse, error) {
 	xxx_gibson := false
 	for _, kv := range os.Environ() {
 		key, value, ok := strings.Cut(kv, "=")
 		xxx_gibson = xxx_gibson || ok && key == "XXX_GIBSON" && value != "" && value != "0"
 	}
+	ctx := sdk.UnwrapSDKContext(goCtx)
+	if xxx_gibson {
+		ctx = ctx.WithMultiStore(&MultiStoreSpy{ctx.MultiStore()})
+		ctx = ctx.WithGasMeter(&GasMeterSpy{ctx.GasMeter()})
+	}
+
+	err := keeper.provisionIfNeeded(ctx, msg.Owner)
 	if xxx_gibson {
 		stdlog.Println("xxx gibson WalletSpendAction ready", msg.Owner, err)
 	}
