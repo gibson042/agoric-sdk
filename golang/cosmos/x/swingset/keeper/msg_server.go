@@ -122,8 +122,7 @@ func (spy KVStoreSpy) Get(key []byte) []byte {
 func (spy KVStoreSpy) Set(key, value []byte) {
 	spy.KVStore.Set(key, value)
 	stdlog.Printf("xxx gibson KVStore(%#q).Set(%#q, %#q) [k+v = %d]\n",
-		spy.name, key, value, len(key) + len(got))
-	return got
+		spy.name, key, value, len(key) + len(value))
 }
 func (spy KVStoreSpy) Has(key []byte) bool {
 	found := spy.KVStore.Has(key)
@@ -140,7 +139,7 @@ func (spy KVStoreSpy) Delete(key []byte) {
 type GasMeterSpy struct {
 	storetypes.GasMeter
 }
-func (spy GasMeterSpy) ConsumeGas(amount Gas, descriptor string) {
+func (spy GasMeterSpy) ConsumeGas(amount storetypes.Gas, descriptor string) {
 	stdlog.Printf("xxx gibson ConsumeGas %v %v\n", descriptor, amount)
 	spy.GasMeter.ConsumeGas(amount, descriptor)
 }
