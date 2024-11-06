@@ -4,6 +4,7 @@ import (
 	"context"
 	stdlog "log"
 	"os"
+	"runtime/debug"
 	"strings"
 
 	"github.com/Agoric/agoric-sdk/golang/cosmos/vm"
@@ -119,7 +120,8 @@ func (keeper msgServer) WalletSpendAction(goCtx context.Context, msg *types.MsgW
 	if xxx_gibson {
 		defer func() {
 			if x := recover(); x != nil {
-				stdlog.Println("xxx gibson WalletSpendAction caught panic", msg.Owner, x)
+				stdlog.Printf("xxx gibson WalletSpendAction caught panic %v %q\n%s\n", msg.Owner, x,
+					debug.Stack())
 				panic(x)
 			}
 			stdlog.Println("xxx gibson WalletSpendAction done", msg.Owner)
@@ -185,10 +187,10 @@ func (keeper msgServer) provisionIfNeeded(ctx sdk.Context, owner sdk.AccAddress)
 	}
 
 	err := keeper.routeAction(ctx, msg, action)
-  highPriorityQueueItems, hpqErr := vstoragetesting.GetQueueItems(
-    ctx, keeper.Keeper.vstorageKeeper, StoragePathHighPriorityQueue)
-  actionQueueItems, aqErr := vstoragetesting.GetQueueItems(
-    ctx, keeper.Keeper.vstorageKeeper, StoragePathActionQueue)
+	highPriorityQueueItems, hpqErr := vstoragetesting.GetQueueItems(
+		ctx, keeper.Keeper.vstorageKeeper, StoragePathHighPriorityQueue)
+	actionQueueItems, aqErr := vstoragetesting.GetQueueItems(
+		ctx, keeper.Keeper.vstorageKeeper, StoragePathActionQueue)
 	if xxx_gibson {
 		stdlog.Printf(
 			"xxx gibson provisionIfNeeded routeAction %v: error %v, queues %#q %v %#q %v\n",
