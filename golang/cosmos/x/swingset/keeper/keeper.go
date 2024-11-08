@@ -366,14 +366,6 @@ func (k Keeper) ChargeForSmartWallet(
 ) error {
 	beans := beansPerUnit[types.BeansPerSmartWalletProvision]
 	err := k.ChargeBeans(ctx, beansPerUnit, addr, beans)
-	xxx_gibson := false
-	for _, kv := range os.Environ() {
-		key, value, ok := strings.Cut(kv, "=")
-		xxx_gibson = xxx_gibson || ok && key == "XXX_GIBSON" && value != "" && value != "0"
-	}
-	if xxx_gibson {
-		stdlog.Println("xxx gibson ChargeForSmartWallet", addr, beans, err)
-	}
 	if err != nil {
 		return err
 	}
