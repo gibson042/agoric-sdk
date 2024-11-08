@@ -149,7 +149,14 @@ export const makeWalletCommand = async command => {
 
       const offerBody = fs.readFileSync(offer).toString();
       const out = execSwingsetTransaction(
-        ['wallet-action', '--allow-spend', offerBody, '--output', 'json', '-bblock'],
+        [
+          'wallet-action',
+          '--allow-spend',
+          offerBody,
+          '--output',
+          'json',
+          '-bblock',
+        ],
         {
           from,
           dryRun,
