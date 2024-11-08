@@ -62,7 +62,7 @@ export const retryUntilCondition = async (
 
   const timedOut = Symbol('timed out');
   let retries = 0;
-  /** @type {Promise} */
+  /** @type {Promise | undefined} */
   let resultP;
   while (retries < maxRetries) {
     try {
@@ -76,6 +76,7 @@ export const retryUntilCondition = async (
           };
           return cleanup;
         };
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         resultP.catch(() => {}).then(makeCleanup(resultP));
       }
       const result = await Promise.race([
