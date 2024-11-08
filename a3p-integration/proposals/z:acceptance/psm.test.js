@@ -12,7 +12,6 @@
  * 6 - Make sure mint limit is adhered
  */
 
-import test from 'ava';
 import {
   agd,
   agoric,
@@ -21,6 +20,7 @@ import {
   GOV2ADDR,
 } from '@agoric/synthetic-chain';
 import { waitUntilAccountFunded } from '@agoric/client-utils';
+import test from 'ava';
 import { NonNullish } from './test-lib/errors.js';
 import {
   adjustBalancesIfNotProvisioned,
