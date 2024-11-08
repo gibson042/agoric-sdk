@@ -1,7 +1,6 @@
 /// <reference types="node" />
 /* eslint-env node */
 
-import '@endo/init';
 import { makePromiseKit } from '@endo/promise-kit';
 import {
   boardSlottingMarshaller,
