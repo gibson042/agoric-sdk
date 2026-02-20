@@ -185,6 +185,7 @@ export async function buildSwingset(
     profileVats,
     debugVats,
     warehousePolicy,
+    kernelBundle = undefined,
   },
 ) {
   const debugPrefix = debugName === undefined ? '' : `${debugName}:`;
@@ -299,6 +300,7 @@ export async function buildSwingset(
       profileVats,
       debugVats,
       warehousePolicy,
+      kernelBundle,
     },
   );
 
