@@ -27,13 +27,12 @@ import {
 
 import type { CosmosRestClient } from './cosmos-rest-client.js';
 import { getERC4626VaultsBalances } from './erc4626-utils.ts';
+import { getEVMPositionBalances } from './evm-utils.ts';
 import type { ChainAddressTokenBalance } from './graphql/api-spectrum-blockchain/__generated/graphql.ts';
 import type { Sdk as SpectrumBlockchainSdk } from './graphql/api-spectrum-blockchain/__generated/sdk.ts';
-import type { ProtocolPoolUserBalanceResult } from './graphql/api-spectrum-pools/__generated/graphql.ts';
-import type { Sdk as SpectrumPoolsSdk } from './graphql/api-spectrum-pools/__generated/sdk.ts';
 import type { EvmChain } from './pending-tx-manager.ts';
 import type { EvmProviders } from './support.ts';
-import { spectrumProtocols, UserInputError } from './support.ts';
+import { UserInputError } from './support.ts';
 import { getOwn, lookupValueForKey } from './utils.js';
 
 const scale6 = (x: number) => {
@@ -63,21 +62,11 @@ const amountFromAccountBalance = (
   balance === undefined
     ? undefined
     : AmountMath.make(brand, scale6(Number(balance)));
-type PositionBalance = ProtocolPoolUserBalanceResult['balance'];
-const amountFromPositionBalance = (
-  brand: Brand<'nat'>,
-  balanceRecord: PositionBalance,
-) =>
-  balanceRecord?.USDC === undefined
-    ? undefined
-    : AmountMath.make(brand, scale6(balanceRecord.USDC));
-
 export type BalanceQueryPowers = {
   cosmosRest: CosmosRestClient;
   spectrumBlockchain: SpectrumBlockchainSdk;
-  spectrumPools: SpectrumPoolsSdk;
   spectrumChainIds: Partial<Record<SupportedChain, string>>;
-  spectrumPoolIds: Partial<Record<PoolKey, string>>;
+  positionTokenAddresses: Partial<Record<PoolKey, string>>;
   usdcTokensByChain: Partial<Record<SupportedChain, string>>;
   erc4626VaultAddresses: Partial<Record<ERC4626InstrumentId, EvmAddress>>;
   evmProviders: EvmProviders;
@@ -112,19 +101,6 @@ const makeSpectrumAccountQuery = (
   return { chain: chainId, address, token };
 };
 
-const makeSpectrumPoolQuery = (
-  desc: PositionQueryDescriptor,
-  powers: BalanceQueryPowers,
-) => {
-  const { place, chainName, protocol, address } = desc;
-  return {
-    chain: lookupValueForKey(powers.spectrumChainIds, chainName),
-    protocol: lookupValueForKey(spectrumProtocols, protocol),
-    pool: lookupValueForKey(powers.spectrumPoolIds, place),
-    address,
-  };
-};
-
 export type ERC4626VaultQuery = {
   place: PoolKey;
   chainName: SupportedChain;
@@ -137,7 +113,7 @@ export const getCurrentBalances = async (
   powers: BalanceQueryPowers,
 ): Promise<Partial<Record<AssetPlaceRef, NatAmount | undefined>>> => {
   const { positionKeys, accountIdByChain } = status;
-  const { spectrumBlockchain, spectrumPools } = powers;
+  const { spectrumBlockchain } = powers;
   const addressInfo = new Map<SupportedChain, Caip10Record>();
   const accountQueries = [] as AccountQueryDescriptor[];
   const positionQueries = [] as PositionQueryDescriptor[];
@@ -170,14 +146,13 @@ export const getCurrentBalances = async (
         addressInfo.get(chainName) ||
         Fail`No ${chainName} address for instrument ${instrument}`;
       if (namespace !== 'eip155') {
-        // USDN Vaults are not "pools" and specifically are not in the Spectrum
-        // Pools API.
+        // A USDN Vault is queried as an "account" rather than a "position".
         accountQueries.push({ place, chainName, address, asset: protocol });
       } else if (protocol === YieldProtocol.ERC4626) {
         // ERC-4626 vault queries are issued directly.
         erc4626Queries.push({ place, chainName, protocol, address });
       } else {
-        // Other queries go through the Spectrum Pools API.
+        // Other EVM position queries (Aave, Beefy, Compound) are issued directly.
         positionQueries.push({ place, chainName, protocol, address });
       }
     } catch (err) {
@@ -188,17 +163,14 @@ export const getCurrentBalances = async (
   const spectrumAccountQueries = accountQueries.map(desc =>
     makeSpectrumAccountQuery(desc, powers),
   );
-  const spectrumPoolQueries = positionQueries.map(desc =>
-    makeSpectrumPoolQuery(desc, powers),
-  );
 
   const [accountResult, positionResult, erc4626Result] =
     await Promise.allSettled([
       spectrumAccountQueries.length
         ? spectrumBlockchain.getBalances({ accounts: spectrumAccountQueries })
         : { balances: [] },
-      spectrumPoolQueries.length
-        ? spectrumPools.getBalances({ positions: spectrumPoolQueries })
+      positionQueries.length
+        ? getEVMPositionBalances(positionQueries, powers)
         : { balances: [] },
       erc4626Queries.length
         ? getERC4626VaultsBalances(erc4626Queries, powers)
@@ -244,11 +216,16 @@ export const getCurrentBalances = async (
       balances.set(place, AmountMath.make(brand, BigInt(result.balance)));
     }
   }
-  for (let i = 0; i < positionQueries.length; i += 1) {
-    const { place } = positionQueries[i];
+  for (let i = 0; i < positionBalances.length; i += 1) {
     const result = positionBalances[i];
-    if (result.error) errors.push(Error(result.error));
-    balances.set(place, amountFromPositionBalance(brand, result.balance));
+    if (result.error) {
+      errors.push(Error(result.error));
+    }
+    if (result.balance === undefined) {
+      balances.set(result.place, undefined);
+    } else {
+      balances.set(result.place, AmountMath.make(brand, result.balance));
+    }
   }
   for (let i = 0; i < erc4626Queries.length; i += 1) {
     const result = erc4626Balances[i];
