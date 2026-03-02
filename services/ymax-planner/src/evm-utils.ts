@@ -8,9 +8,74 @@ import {
   isERC4626InstrumentId,
 } from '@agoric/portfolio-api/src/type-guards.js';
 import { Fail, q } from '@endo/errors';
+import type { EvmAddress } from '@agoric/fast-usdc';
+import { fromUniqueEntries, partialMap, typedEntries } from '@agoric/internal';
+import type { axelarConfig } from '@aglocal/portfolio-deploy/src/axelar-configs.js';
+import type { EVMContractAddresses } from '@aglocal/portfolio-contract/src/portfolio.contract.ts';
 import type { EvmChain } from './pending-tx-manager.ts';
 import type { EvmProviders } from './support.ts';
 
+/**
+ * Build a unified map of pool/instrument IDs to their on-chain token contract
+ * addresses from the axelar chain config. Extracts addresses for:
+ * - ERC-4626 vaults
+ * - Beefy vaults
+ * - Aave pools
+ * - Compound pools
+ * - USDC tokens (for USDC-based positions without a receipt token)
+ *
+ * These addresses are used by {@link getErc20PositionBalances} to query on-chain
+ * balances via Alchemy
+ */
+export const getPoolTokenAddresses = (
+  axelarCfg: typeof axelarConfig,
+): Partial<Record<PoolKey | `@${EvmChain}`, EvmAddress>> => {
+  /**
+   * Select contracts from `axelarCfg` using a function that ensures uniqueness
+   * of the corresponding name (e.g., by embedding the chain name).
+   * XXX This should take `axelarCfg` as an argument and be promoted up out of
+   * getPoolTokenAddresses.
+   */
+  const pickContracts = <K extends PoolKey>(
+    keyFromContractLabel: (
+      name: keyof EVMContractAddresses,
+      chainName: EvmChain,
+    ) => K | boolean | undefined,
+  ): Partial<Record<K, EvmAddress>> => {
+    const selectedEntries = typedEntries(axelarCfg).flatMap(
+      ([chainName, chainConfig]) =>
+        partialMap(typedEntries(chainConfig.contracts), ([label, addr]) => {
+          const key = keyFromContractLabel(label, chainName);
+          return key && ([key === true ? label : key, addr] as [K, EvmAddress]);
+        }),
+    );
+    return fromUniqueEntries(selectedEntries) as Partial<Record<K, EvmAddress>>;
+  };
+  const erc4626VaultAddresses = pickContracts(isERC4626InstrumentId);
+  const beefyVaultAddresses = pickContracts(isBeefyInstrumentId);
+  const aavePoolAddresses = pickContracts(
+    (label, chainName) =>
+      label === 'aaveUSDC' && (`Aave_${chainName}` as PoolKey),
+  );
+  const compoundPoolAddresses = pickContracts(
+    (label, chainName) =>
+      label === 'compound' && (`Compound_${chainName}` as PoolKey),
+  );
+  const positionTokenAddresses = {
+    ...erc4626VaultAddresses,
+    ...beefyVaultAddresses,
+    ...aavePoolAddresses,
+    ...compoundPoolAddresses,
+  } as Partial<Record<PoolKey, EvmAddress>>;
+
+  return positionTokenAddresses;
+};
+
+/**
+ * Minimal ERC-20 ABI for reading token balances via `balanceOf(address)`.
+ *
+ * @see {@link https://eips.ethereum.org/EIPS/eip-20#balanceof}
+ */
 export const ERC20_BALANCE_ABI = [
   {
     name: 'balanceOf',
@@ -50,7 +115,7 @@ const BEEFY_VAULT_DECIMALS = 10n ** 18n;
 /**
  * Fetch the ERC-20 token balance for an address using an ethers WebSocketProvider.
  */
-export const getEVMPositionBalance = async (
+export const getErc20PositionBalance = async (
   tokenAddress: string,
   userAddress: string,
   provider: WebSocketProvider,
@@ -140,7 +205,7 @@ export type EVMPositionBalancePowers = {
  * - ERC4626 (Morpho, etc.): `balanceOf` + `convertToAssets()`
  * - Default (Aave, Compound): simple `balanceOf` (already underlying)
  */
-export const getEVMPositionBalances = async (
+export const getErc20PositionBalances = async (
   queries: EVMPositionQuery[],
   powers: EVMPositionBalancePowers,
 ): Promise<{ balances: PositionBalanceResult[] }> => {
@@ -171,7 +236,7 @@ export const getEVMPositionBalances = async (
             provider,
           );
         } else {
-          balance = await getEVMPositionBalance(
+          balance = await getErc20PositionBalance(
             tokenAddress,
             address,
             provider,
