@@ -11,7 +11,7 @@ import { Fail, q } from '@endo/errors';
 import type { EvmChain } from './pending-tx-manager.ts';
 import type { EvmProviders } from './support.ts';
 
-const ERC20_BALANCE_ABI = [
+export const ERC20_BALANCE_ABI = [
   {
     name: 'balanceOf',
     type: 'function',
