@@ -1452,7 +1452,12 @@ export const makeSwingsetTestKit = async <
   const evalProposal = async (proposalP: ERef<ProposalMaterials>) => {
     const { EV } = runUtils;
 
-    const proposal = harden(await proposalP);
+    const proposal = harden(
+      await profiler.measure(
+        'makeSwingsetTestKit.proposal.resolve',
+        () => proposalP,
+      ),
+    );
 
     await profiler.measure(
       'makeSwingsetTestKit.proposal.installBundles',
