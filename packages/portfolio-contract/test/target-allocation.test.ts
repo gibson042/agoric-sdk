@@ -1,20 +1,21 @@
 /**
  * @file Test target allocation functionality
  */
-import { eventLoopIteration } from '@agoric/internal/src/testing-utils.js';
-import type { VstorageKit } from '@agoric/client-utils';
-import { test } from '@agoric/zoe/tools/prepare-test-env-ava.js';
-import { E } from '@endo/far';
-import { makeTrader } from '../tools/portfolio-actors.js';
-import { makeWallet } from '../tools/wallet-offer-tools.js';
-import type { PortfolioPublishedPathTypes } from '../src/type-guards.ts';
+import { test as anyTest } from '@agoric/zoe/tools/prepare-test-env-ava.js';
+import type { TestFn } from 'ava';
 import { setupTrader } from './contract-setup.js';
 
 const ackNFA = (utils, ix = 0) =>
   utils.transmitVTransferEvent('acknowledgementPacket', ix);
 
-test('openPortfolio stores and publishes target allocation', async t => {
-  const { trader1, common } = await setupTrader(t);
+const test: TestFn<Awaited<ReturnType<typeof setupTrader>>> = anyTest;
+
+test.before(async t => {
+  t.context = await setupTrader(t);
+});
+
+test.serial('openPortfolio stores and publishes target allocation', async t => {
+  const { common, trader1 } = t.context;
 
   // target: 60% USDN, 40% Aave on Arbitrum
   const targetAllocation = { USDN: 6000n, Aave_Arbitrum: 4000n };
@@ -30,14 +31,15 @@ test('openPortfolio stores and publishes target allocation', async t => {
   t.deepEqual(portfolioStatus.targetAllocation, targetAllocation);
 });
 
-test('setTargetAllocation rejects invalid pool keys', async t => {
-  const { trader1, common } = await setupTrader(t);
+test.serial('setTargetAllocation rejects invalid pool keys', async t => {
+  const { common, trader2 } = t.context;
+  assert(trader2, 'trader2 must be provisioned by setupTrader');
   const { usdc } = common.brands;
 
   // Open portfolio first
   await Promise.all([
-    trader1.openPortfolio(t, { Deposit: usdc.units(1_000) }),
-    ackNFA(common.utils),
+    trader2.openPortfolio(t, { Deposit: usdc.units(1_000) }),
+    ackNFA(common.utils, -1),
   ]);
   // Try to rebalance with invalid pool key
   const badTargetAllocation = {
@@ -56,44 +58,10 @@ test('setTargetAllocation rejects invalid pool keys', async t => {
   );
 });
 
-test('multiple portfolios have independent allocations', async t => {
-  const { common, zoe, started } = await setupTrader(t);
-  const { usdc, bld, poc26 } = common.brands;
-  const { when } = common.utils.vowTools;
-
-  const { storage } = common.bootstrap;
-  const readPublished = (async subpath => {
-    await eventLoopIteration();
-    const val = storage.getDeserialized(`orchtest.${subpath}`).at(-1);
-    return val;
-  }) as VstorageKit<PortfolioPublishedPathTypes>['readPublished'];
-
-  // Create two separate wallets and traders
-  const { mint: _, ...poc26SansMint } = poc26;
-  const { mint: _b, ...bldSansMint } = bld;
-
-  const wallet1 = makeWallet(
-    { USDC: usdc, BLD: bldSansMint, Access: poc26SansMint },
-    zoe,
-    when,
-  );
-  const wallet2 = makeWallet(
-    { USDC: usdc, BLD: bldSansMint, Access: poc26SansMint },
-    zoe,
-    when,
-  );
-
-  // Fund both wallets
-  await E(wallet1).deposit(await common.utils.pourPayment(usdc.units(5_000)));
-  await E(wallet1).deposit(poc26.mint.mintPayment(poc26.make(1n)));
-  await E(wallet1).deposit(bld.mint.mintPayment(bld.make(10_000n)));
-
-  await E(wallet2).deposit(await common.utils.pourPayment(usdc.units(7_000)));
-  await E(wallet2).deposit(poc26.mint.mintPayment(poc26.make(1n)));
-  await E(wallet2).deposit(bld.mint.mintPayment(bld.make(10_000n)));
-
-  const trader1 = makeTrader(wallet1, started.instance, readPublished);
-  const trader2 = makeTrader(wallet2, started.instance, readPublished);
+test.serial('multiple portfolios have independent allocations', async t => {
+  const { common, makeFundedTrader } = t.context;
+  const trader1 = await makeFundedTrader();
+  const trader2 = await makeFundedTrader();
 
   // Set different target allocations for each portfolio
   const allocation1 = harden({
@@ -109,7 +77,7 @@ test('multiple portfolios have independent allocations', async t => {
   // Open portfolios with different allocations
   await Promise.all([
     trader1.openPortfolio(t, {}, { targetAllocation: allocation1 }),
-    ackNFA(common.utils, 0),
+    ackNFA(common.utils, -1),
   ]);
 
   await Promise.all([
