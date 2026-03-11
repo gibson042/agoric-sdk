@@ -19,6 +19,7 @@ import {
   type WalletFactoryTestContext,
 } from '../bootstrapTests/walletFactory.js';
 import { minimalChainInfos } from '../tools/chainInfo.js';
+import { loadOrCreateRunUtilsSnapshot } from '../tools/runutils-snapshots.js';
 
 const test: TestFn<
   WalletFactoryTestContext & {
@@ -62,9 +63,14 @@ const wrapSteps = <S extends TestStep[]>(
   ) as unknown as S;
 
 test.before(async t => {
+  const snapshot = await loadOrCreateRunUtilsSnapshot(
+    'orchestration-base',
+    t.log,
+  );
   const context = await makeWalletFactoryContext(
     t,
     '@agoric/vm-config/decentral-itest-orchestration-config.json',
+    { snapshot },
   );
 
   const { getInboundQueueLength } = context.bridgeUtils;
