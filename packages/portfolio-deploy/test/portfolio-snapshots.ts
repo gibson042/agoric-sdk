@@ -2,11 +2,17 @@ import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { type SwingsetTestKitSnapshot } from '@aglocal/boot/tools/supports.js';
-import { loadOrCreateRunUtilsSnapshot } from '../../boot/test/tools/runutils-snapshots.js';
-import { preparePortfolioReadyContext } from './portfolio-snapshot-setup.ts';
+import {
+  getCurrentKernelBundleSha512,
+  loadOrCreateCachedSnapshot,
+  loadOrCreateRunUtilsSnapshot,
+} from '../../boot/test/tools/runutils-snapshots.js';
+import {
+  preparePortfolioNewContractContext,
+  preparePortfolioReadyContext,
+} from './portfolio-snapshot-setup.ts';
 import { makeWalletFactoryContext } from './walletFactory.ts';
 
 const SNAPSHOT_VERSION = 1;
@@ -30,14 +36,23 @@ export const PORTFOLIO_SNAPSHOT_SPECS = {
       '@agoric/vm-config/decentral-itest-orchestration-config.json',
     description: 'Boot snapshot with portfolio proposals applied',
   },
+  'portfolio-new-contract-ready': {
+    configSpecifier:
+      '@agoric/vm-config/decentral-itest-orchestration-config.json',
+    description: 'Portfolio snapshot after removing and starting a fresh ymax0',
+  },
 } as const;
 
 export type PortfolioSnapshotName = keyof typeof PORTFOLIO_SNAPSHOT_SPECS;
 
 type SnapshotBody = {
   version: typeof SNAPSHOT_VERSION;
-  snapshot: SwingsetTestKitSnapshot;
+  kernelBundleSha512: string;
+  storageSnapshot?: SwingsetTestKitSnapshot['storageSnapshot'];
 };
+type SnapshotKernelBundle = NonNullable<
+  SwingsetTestKitSnapshot['kernelBundle']
+>;
 
 const listNames = () => Object.keys(PORTFOLIO_SNAPSHOT_SPECS);
 
@@ -50,38 +65,61 @@ export const isPortfolioSnapshotName = (
 export const availablePortfolioSnapshotNames = (): PortfolioSnapshotName[] =>
   listNames().filter(isPortfolioSnapshotName);
 
-const snapshotPath = (name: PortfolioSnapshotName) =>
-  `${snapshotDir}/${name}.json`;
-const snapshotLockPath = (name: PortfolioSnapshotName) =>
-  `${snapshotDir}/${name}.lock`;
+const snapshotPath = (name: PortfolioSnapshotName) => `${snapshotDir}/${name}`;
+const snapshotMetadataPath = (name: PortfolioSnapshotName) =>
+  `${snapshotPath(name)}/metadata.json`;
+const snapshotKernelBundlePath = (name: PortfolioSnapshotName) =>
+  `${snapshotPath(name)}/kernel-bundle.json`;
+const snapshotSwingStorePath = (name: PortfolioSnapshotName) =>
+  `${snapshotPath(name)}/swingstore`;
 
 export const createPortfolioSnapshot = async (
   name: PortfolioSnapshotName,
   log: (...args: unknown[]) => void = console.log,
 ) => {
   const spec = PORTFOLIO_SNAPSHOT_SPECS[name];
-  const baseSnapshot = await loadOrCreateRunUtilsSnapshot(
-    'orchestration-base',
-    log,
-  );
+  const baseSnapshot =
+    name === 'portfolio-ready'
+      ? await loadOrCreateRunUtilsSnapshot('orchestration-base', log)
+      : await loadOrCreatePortfolioSnapshot('portfolio-ready', log);
+  const kernelBundle = baseSnapshot.kernelBundle;
+  if (!kernelBundle) {
+    throw Error(`Snapshot ${name} base snapshot is missing kernel bundle data`);
+  }
+  const path = snapshotPath(name);
+  const swingStorePath = snapshotSwingStorePath(name);
+  await fs.rm(path, { recursive: true, force: true });
+  await fs.mkdir(path, { recursive: true });
   const kit = await makeWalletFactoryContext(
     { log } as Parameters<typeof makeWalletFactoryContext>[0],
     spec.configSpecifier,
-    { snapshot: baseSnapshot },
+    { snapshot: baseSnapshot, swingStorePath },
   );
   try {
-    await preparePortfolioReadyContext(kit);
+    if (name === 'portfolio-ready') {
+      await preparePortfolioReadyContext(kit);
+    } else {
+      await preparePortfolioNewContractContext(kit);
+    }
     await kit.controller.snapshotAllVats();
     await kit.swingStore.hostStorage.commit();
 
-    const body: SnapshotBody = {
+    const metadata: SnapshotBody = {
       version: SNAPSHOT_VERSION,
-      snapshot: kit.makeSnapshot(),
+      kernelBundleSha512: kernelBundle.endoZipBase64Sha512,
+      storageSnapshot: kit.makeStorageSnapshot(),
     };
-
-    await fs.mkdir(snapshotDir, { recursive: true });
-    await fs.writeFile(snapshotPath(name), JSON.stringify(body), 'utf-8');
-    return snapshotPath(name);
+    await fs.writeFile(
+      snapshotKernelBundlePath(name),
+      JSON.stringify(kernelBundle),
+      'utf-8',
+    );
+    await fs.writeFile(
+      snapshotMetadataPath(name),
+      JSON.stringify(metadata, null, 2),
+      'utf-8',
+    );
+    return path;
   } finally {
     await kit.shutdown();
   }
@@ -90,53 +128,40 @@ export const createPortfolioSnapshot = async (
 export const loadPortfolioSnapshot = async (
   name: PortfolioSnapshotName,
 ): Promise<SwingsetTestKitSnapshot> => {
-  const body = JSON.parse(
-    await fs.readFile(snapshotPath(name), 'utf-8'),
-  ) as SnapshotBody;
-  if (body.version !== SNAPSHOT_VERSION) {
+  const [metadataBody, kernelBundleBody, currentKernelBundleSha512] =
+    await Promise.all([
+      fs.readFile(snapshotMetadataPath(name), 'utf-8'),
+      fs.readFile(snapshotKernelBundlePath(name), 'utf-8'),
+      getCurrentKernelBundleSha512(),
+    ]);
+  const metadata = JSON.parse(metadataBody) as SnapshotBody;
+  if (metadata.version !== SNAPSHOT_VERSION) {
     throw new Error(
-      `Unsupported snapshot version ${body.version}, expected ${SNAPSHOT_VERSION}`,
+      `Unsupported snapshot version ${metadata.version}, expected ${SNAPSHOT_VERSION}`,
     );
   }
-  return body.snapshot;
+  const kernelBundle = JSON.parse(kernelBundleBody) as SnapshotKernelBundle;
+  if (kernelBundle.endoZipBase64Sha512 !== metadata.kernelBundleSha512) {
+    throw new Error(`Snapshot ${name} kernel bundle hash mismatch`);
+  }
+  if (currentKernelBundleSha512 !== metadata.kernelBundleSha512) {
+    throw new Error(`Snapshot ${name} current kernel bundle hash mismatch`);
+  }
+  return {
+    swingStoreDir: snapshotSwingStorePath(name),
+    kernelBundle,
+    storageSnapshot: metadata.storageSnapshot,
+  };
 };
 
 export const loadOrCreatePortfolioSnapshot = async (
   name: PortfolioSnapshotName,
   log: (...args: unknown[]) => void = console.log,
-): Promise<SwingsetTestKitSnapshot> => {
-  const lockPath = snapshotLockPath(name);
-  await fs.mkdir(snapshotDir, { recursive: true });
-  for (;;) {
-    try {
-      return await loadPortfolioSnapshot(name);
-    } catch {
-      // fall through to lock acquisition and possible regeneration
-    }
-    let lock;
-    try {
-      lock = await fs.open(lockPath, 'wx');
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === 'EEXIST') {
-        await delay(100);
-        continue;
-      }
-      throw e;
-    }
-    try {
-      try {
-        return await loadPortfolioSnapshot(name);
-      } catch (cause) {
-        log(
-          `Portfolio snapshot ${name} missing or stale; regenerating at ${snapshotPath(name)}`,
-          cause,
-        );
-        await createPortfolioSnapshot(name, log);
-        return loadPortfolioSnapshot(name);
-      }
-    } finally {
-      await lock.close();
-      await fs.rm(lockPath, { force: true });
-    }
-  }
-};
+): Promise<SwingsetTestKitSnapshot> =>
+  loadOrCreateCachedSnapshot({
+    load: () => loadPortfolioSnapshot(name),
+    create: () => createPortfolioSnapshot(name, log),
+    cachePath: snapshotPath(name),
+    label: `Portfolio snapshot ${name}`,
+    log,
+  });
