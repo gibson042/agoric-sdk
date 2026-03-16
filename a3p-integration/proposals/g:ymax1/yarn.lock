@@ -70,7 +70,7 @@ __metadata:
     "@endo/pass-style": "npm:^1.6.3"
     "@endo/patterns": "npm:^1.7.0"
     "@endo/promise-kit": "npm:^1.1.13"
-    execa: "npm:^9.6.0"
+    viem: "npm:^2.31.0"
   languageName: node
   linkType: soft
 
@@ -2861,7 +2861,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"execa@npm:^9.5.3, execa@npm:^9.6.0":
+"execa@npm:^9.5.3":
   version: 9.6.1
   resolution: "execa@npm:9.6.1"
   dependencies:
