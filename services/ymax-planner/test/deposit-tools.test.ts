@@ -73,7 +73,7 @@ const makeMovementDesc = (src: string, dest: string, value: bigint) => {
 const handleDeposit = async (
   portfolioKey: `${string}.portfolios.portfolio${number}`,
   amount: NatAmount,
-  feeBrand: Brand<'nat'>,
+  feeTokenBrand: Brand<'nat'>,
   powers: {
     readPublished: VstorageKit<PortfolioPublishedPathTypes>['readPublished'];
     cosmosRest?: CosmosRestClient;
@@ -110,7 +110,7 @@ const handleDeposit = async (
     currentBalances,
     targetAllocation,
     network,
-    feeBrand,
+    feeBrand: feeTokenBrand,
     gasEstimator: powers.gasEstimator,
   });
   return { policyVersion, rebalanceCount, plan };
