@@ -900,14 +900,18 @@ export const startEngine = async (
         compareBigints(a.eventRecord.blockHeight, b.eventRecord.blockHeight) ||
         naturalCompare(a.path, b.path),
     );
-    await processPortfolioEvents(
-      portfolioEvents,
-      respHeight,
-      portfoliosMemory,
-      processPortfolioPowers,
-    );
-
-    await processPendingTxEvents(pendingTxEvents, handlePendingTx, txPowers);
+    // Process concurrently: pending tx watchers must subscribe to EVM events
+    // ASAP to avoid missing transactions that settle while portfolio
+    // processing (balance queries, planning, tx submission) is in progress.
+    await Promise.all([
+      processPortfolioEvents(
+        portfolioEvents,
+        respHeight,
+        portfoliosMemory,
+        processPortfolioPowers,
+      ),
+      processPendingTxEvents(pendingTxEvents, handlePendingTx, txPowers),
+    ]);
 
     console.log(
       inspectForStdout({
