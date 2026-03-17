@@ -1729,28 +1729,29 @@ test('simple rebalance using planner', async t => {
   t.is(833332500n, (3333330000n * 25n) / 100n);
 });
 
-const createAndDepositTestMacro = test.macro(
-  async (
-    t,
+const makeCreateAndDepositScenarioRunner = (
+  t: ExecutionContext,
+  powers: Awaited<ReturnType<typeof setupPlanner>>,
+) => {
+  const { common, makeFundedTrader, planner1, readPublished, started } = powers;
+  const { usdc } = common.brands;
+
+  type Input = {
+    trader1: Awaited<ReturnType<typeof makeFundedTrader>>;
+    traderP: Promise<void>;
+    plannerP: Promise<void>;
+    pId: number;
+  };
+
+  let nextPortfolioId = 0;
+
+  return async (
     testOpts: {
-      deployOverrides?: Partial<PortfolioPrivateArgs>;
       restartOverrides?: Partial<PortfolioPrivateArgs>;
     } = {},
   ) => {
-    const { common, makeFundedTrader, planner1, readPublished, started } =
-      await setupPlanner(t, testOpts.deployOverrides);
-    const { usdc } = common.brands;
-
     await planner1.redeem();
 
-    type Input = {
-      trader1: Awaited<ReturnType<typeof makeFundedTrader>>;
-      traderP: Promise<void>;
-      plannerP: Promise<void>;
-      pId: number;
-    };
-
-    let nextPortfolioId = 0;
     const allSteps: TestStep[] = typedEntries({
       makeTrader1: async (opts, label) => {
         const trader1 = await makeFundedTrader();
@@ -1776,7 +1777,6 @@ const createAndDepositTestMacro = test.macro(
       resolvePlan: (opts, label) => {
         const plannerP = (async () => {
           const getStatus = async pId => {
-            // NOTE: readPublished uses eventLoopIteration() to let vstorage writes settle
             const x = await readPublished(`portfolios.portfolio${pId}`);
             return x as unknown as StatusFor['portfolio'];
           };
@@ -1795,12 +1795,9 @@ const createAndDepositTestMacro = test.macro(
           const [[flowId, detail]] = getRunningFlowEntries(flowsRunning);
           const fId = Number(flowId.replace('flow', ''));
 
-          // narrow the type
           if (detail.type !== 'deposit') throw t.fail(detail.type);
 
-          // XXX brand from vstorage isn't suitable for use in call to kit
           const amount = AmountMath.make(usdc.brand, detail.amount.value);
-
           const plan: FundsFlowPlan = {
             flow: [{ src: '<Deposit>', dest: '@agoric', amount }],
           };
@@ -1843,38 +1840,27 @@ const createAndDepositTestMacro = test.macro(
             const privateArgs = common.utils.makePrivateArgs(
               testOpts.restartOverrides,
             );
-
-            // XXX restartContract is not supported in this test environment.
-            // The interrupt hook is intentionally a no-op here; restart
-            // behavior is covered by boot tests instead.
             await E(started.adminFacet).restartContract(privateArgs);
           },
           { message: 'upgrade not faked' },
         );
       });
     await testInterruptedSteps(t, allSteps, interrupt);
-  },
-);
+  };
+};
 
-test('create portfolio and deposit using planner', createAndDepositTestMacro);
-test(
-  'create portfolio and deposit using planner (restart)',
-  createAndDepositTestMacro,
-  {
-    restartOverrides: {},
-  },
-);
-test(
-  'create portfolio and deposit using planner (upgrade)',
-  createAndDepositTestMacro,
-  {
-    deployOverrides: {
-      // Start with no config argument.
-      defaultFlowConfig: null,
-    },
-    restartOverrides: {},
-  },
-);
+test('create portfolio and deposit using planner', async t => {
+  const powers = await setupPlanner(t);
+  const runScenario = makeCreateAndDepositScenarioRunner(t, powers);
+  await runScenario();
+  await runScenario({ restartOverrides: {} });
+});
+
+test('create portfolio and deposit using planner (upgrade)', async t => {
+  const powers = await setupPlanner(t, { defaultFlowConfig: null });
+  const runScenario = makeCreateAndDepositScenarioRunner(t, powers);
+  await runScenario({ restartOverrides: {} });
+});
 
 const erc4626TestMacro = test.macro({
   async exec(t, vaultKey: AssetPlaceRef) {
