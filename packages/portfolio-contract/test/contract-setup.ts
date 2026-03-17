@@ -1,3 +1,5 @@
+import assert from 'node:assert/strict';
+
 import { mustMatch, type ERemote } from '@agoric/internal';
 import type { VstorageKit } from '@agoric/client-utils';
 import { defaultSerializer } from '@agoric/internal/src/storage-test-utils.js';
@@ -32,7 +34,39 @@ import { timeAsync } from './test-timing.ts';
 
 const contractName = 'ymax0';
 type StartFn = typeof contractExports.start;
+type TimeAsync = <T>(label: string, fn: () => Promise<T>) => Promise<T>;
+type DeployResult = Awaited<ReturnType<typeof deployFromScratch>>;
+type DeployBase = {
+  key: string;
+  supportsFork: boolean;
+};
+type DeployFactory = ReturnType<typeof makeDeployFactory>;
 const { values } = Object;
+
+const identityTimeAsync: TimeAsync = async (_label, fn) => fn();
+const noopLog = Object.assign((..._args: any[]) => {}, {
+  skip: (..._args: any[]) => {},
+}) as ExecutionContext['log'];
+
+const stableStringify = (value: unknown): string => {
+  const normalized = (input: unknown): unknown => {
+    if (typeof input === 'bigint') {
+      return { __bigint__: `${input}` };
+    }
+    if (Array.isArray(input)) {
+      return input.map(normalized);
+    }
+    if (input && typeof input === 'object') {
+      return Object.fromEntries(
+        Object.entries(input)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([key, inner]) => [key, normalized(inner)]),
+      );
+    }
+    return input;
+  };
+  return JSON.stringify(normalized(value));
+};
 const makeReadPublished = (
   storage: Awaited<
     ReturnType<typeof setupPortfolioTest>
@@ -99,27 +133,25 @@ export const provideMakePrivateArgs = (
   return makePrivateArgs;
 };
 
-export const deploy = async (
-  t: ExecutionContext,
+const deployFromScratch = async (
   overrides: Partial<PortfolioPrivateArgs> = {},
+  time: TimeAsync = identityTimeAsync,
 ) => {
-  const common = await timeAsync(t, 'setupPortfolioTest', () =>
-    setupPortfolioTest(t),
+  const common = await time('setupPortfolioTest', () =>
+    setupPortfolioTest({ log: noopLog }),
   );
   let testJig;
   const setJig = jig => (testJig = jig);
   const getTestJig = () => testJig;
-  const { zoe, bundleAndInstall } = await timeAsync(t, 'setUpZoeForTest', () =>
+  const { zoe, bundleAndInstall } = await time('setUpZoeForTest', () =>
     setUpZoeForTest({ setJig }),
   );
-  t.log('contract deployment', contractName);
 
-  const installation: Installation<StartFn> = await timeAsync(
-    t,
+  const installation: Installation<StartFn> = await time(
     'bundleAndInstall',
     () => bundleAndInstall(contractExports),
   );
-  t.is(passStyleOf(installation), 'remotable');
+  assert.equal(passStyleOf(installation), 'remotable');
 
   const { usdc, poc26, bld } = common.brands;
   const timerService = buildZoeManualTimer();
@@ -129,7 +161,7 @@ export const deploy = async (
     timerService,
   );
 
-  const startResult = await timeAsync(t, 'zoe.startInstance', () =>
+  const started = await time('zoe.startInstance', () =>
     E(zoe).startInstance(
       installation,
       { USDC: usdc.issuer, Fee: bld.issuer, Access: poc26.issuer },
@@ -137,9 +169,9 @@ export const deploy = async (
       makePrivateArgs(overrides),
     ),
   );
-  t.notThrows(() =>
+  assert.doesNotThrow(() =>
     mustMatch(
-      startResult,
+      started,
       M.splitRecord({
         adminFacet: M.remotable(),
         instance: M.remotable(),
@@ -156,15 +188,86 @@ export const deploy = async (
     },
     zoe,
     contractBaggage,
-    started: startResult,
+    started,
     timerService,
   };
+};
+
+const buildDeployBase = async (
+  overrides: Partial<PortfolioPrivateArgs> = {},
+): Promise<DeployBase> => {
+  return {
+    key: stableStringify(overrides),
+    supportsFork: false,
+  };
+};
+
+const forkDeployBase = async (
+  _base: DeployBase,
+  overrides: Partial<PortfolioPrivateArgs> = {},
+  time: TimeAsync = identityTimeAsync,
+): Promise<DeployResult> => {
+  // Placeholder until lower-level test setup supports snapshot/restore.
+  return deployFromScratch(overrides, time);
+};
+
+const makeDeployFactory = (overrides: Partial<PortfolioPrivateArgs> = {}) => {
+  const overrideKey = stableStringify(overrides);
+  let baseP: Promise<DeployBase> | undefined;
+
+  const ensureBase = async () => {
+    if (!baseP) {
+      baseP = buildDeployBase(overrides);
+    }
+    return baseP;
+  };
+
+  const fork = async (
+    time: TimeAsync = identityTimeAsync,
+  ): Promise<DeployResult> => {
+    const base = await ensureBase();
+    return forkDeployBase(base, overrides, time);
+  };
+
+  return {
+    overrideKey,
+    ensureBase,
+    fork,
+    async getFreshClone(
+      time: TimeAsync = identityTimeAsync,
+    ): Promise<DeployResult> {
+      return fork(time);
+    },
+  };
+};
+
+const deployFactoryCache = new Map<string, DeployFactory>();
+
+const getDeployFactory = (overrides: Partial<PortfolioPrivateArgs> = {}) => {
+  const factory = makeDeployFactory(overrides);
+  const cached = deployFactoryCache.get(factory.overrideKey);
+  if (cached) {
+    return cached;
+  }
+  deployFactoryCache.set(factory.overrideKey, factory);
+  return factory;
+};
+
+export const deploy = async (
+  t: ExecutionContext,
+  overrides: Partial<PortfolioPrivateArgs> = {},
+) => {
+  const factory = getDeployFactory(overrides);
+  return timeAsync(t, 'deploy', () =>
+    factory.getFreshClone((label, fn) => timeAsync(t, label, fn)),
+  );
 };
 
 export const setupTrader = async (
   t,
   initial = 10_000,
   overrides: Partial<PortfolioPrivateArgs> = {},
+  { traderCount = 1 }: { traderCount?: number } = {},
 ) => {
   const deployed = await deploy(t, overrides);
   const { common, zoe, started } = deployed;
@@ -191,7 +294,7 @@ export const setupTrader = async (
       return makeTrader(myWallet, started.instance, readPublished);
     });
   const trader1 = await makeFundedTrader();
-  const trader2 = await makeFundedTrader();
+  const trader2 = traderCount > 1 ? await makeFundedTrader() : undefined;
   const { ibcBridge } = common.mocks;
   ibcBridge.setAddressPrefix('noble');
   for (const { msg, ack } of values(makeUSDNIBCTraffic())) {
@@ -201,9 +304,15 @@ export const setupTrader = async (
     ibcBridge.addMockAck(msg, ack);
   }
 
-  const resolverMakers = await timeAsync(t, 'getResolverMakers', () =>
-    getResolverMakers(zoe, started.creatorFacet),
-  );
+  let resolverMakersP: ReturnType<typeof getResolverMakers> | undefined;
+  const getResolverMakersCached = () => {
+    if (!resolverMakersP) {
+      resolverMakersP = timeAsync(t, 'getResolverMakers', () =>
+        getResolverMakers(zoe, started.creatorFacet),
+      );
+    }
+    return resolverMakersP;
+  };
 
   /**
    * Read pure data (CapData that has no slots) from the storage path
@@ -217,7 +326,12 @@ export const setupTrader = async (
     status: Exclude<TxStatus, 'pending'> = 'success',
   ) => {
     const txNum = Number(txId.replace(/^tx/, ''));
-    await settleTransaction(zoe, resolverMakers, txNum, status);
+    await settleTransaction(
+      zoe,
+      await getResolverMakersCached(),
+      txNum,
+      status,
+    );
   };
 
   const txResolver = harden({
@@ -279,7 +393,7 @@ export const setupTrader = async (
     ...deployed,
     makeFundedTrader,
     trader1,
-    trader2,
+    ...(trader2 ? { trader2 } : {}),
     txResolver,
   };
 };
