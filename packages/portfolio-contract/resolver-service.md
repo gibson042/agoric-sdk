@@ -81,6 +81,7 @@ The resolver:
 **Finality protection:**
 - Before confirming a failure, the resolver waits for additional block confirmations to guard against blockchain reorgs
 - **For reverted transactions (status=0):** Waits for a higher confirmation threshold computed from a 10-minute window (`REVERT_WAIT_TIME_MS / blockTime`). This gives Axelar relayers time to retry the transaction. After the wait, re-checks the receipt — if the transaction is now successful (reorg flipped it), reports success instead
+- **Resubmission during confirmation wait:** If Axelar resubmits the transaction while the resolver is waiting for revert confirmations, the subscription remains active and catches the new transaction. Each incoming message is handled by an independent async invocation, so a successful resubmission resolves immediately via a `done` flag. When the original revert confirmation completes, its resolution attempt is a no-op because `done` is already true. This prevents double resolution.
 
 **Detection modes:**
 - **Live mode:** Subscribes to `alchemy_minedTransactions` for the contract address
@@ -124,6 +125,7 @@ The resolver:
 - Before confirming a failure, the resolver waits for additional block confirmations to guard against blockchain reorgs
 - **For failed events (`success=false`):** Waits for the standard confirmation threshold (e.g. 25 blocks), then re-checks that the event still exists in the finalized block. If the event was removed by a reorg, the resolver continues watching
 - **For reverted transactions (status=0):** Waits for a higher confirmation threshold computed from a 10-minute window (`REVERT_WAIT_TIME_MS / blockTime`). This gives Axelar relayers time to retry the transaction. After the wait, re-checks the receipt — if the transaction is now successful (reorg flipped it), reports success instead
+- **Resubmission during confirmation wait:** If Axelar resubmits the transaction while the resolver is waiting for revert confirmations, the subscription remains active and catches the new transaction. Each incoming message is handled by an independent async invocation, so a successful resubmission resolves immediately via a `done` flag. When the original revert confirmation completes, its resolution attempt is a no-op because `done` is already true. This prevents double resolution.
 
 **Detection modes:**
 - **Live mode:** Subscribes to real-time events via WebSocket and also monitors `alchemy_minedTransactions` for early revert detection
