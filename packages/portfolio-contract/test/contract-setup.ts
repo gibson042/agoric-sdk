@@ -36,7 +36,6 @@ type StartFn = typeof contractExports.start;
 type TimeAsync = <T>(label: string, fn: () => Promise<T>) => Promise<T>;
 type DeployResult = Awaited<ReturnType<typeof forkDeployBase>>;
 type DeployBase = {
-  key: string;
   supportsFork: boolean;
   zoe: ZoeService;
   installation: Installation<StartFn>;
@@ -56,25 +55,6 @@ const noopLog = Object.assign((..._args: any[]) => {}, {
   skip: (..._args: any[]) => {},
 }) as ExecutionContext['log'];
 
-const stableStringify = (value: unknown): string => {
-  const normalized = (input: unknown): unknown => {
-    if (typeof input === 'bigint') {
-      return { __bigint__: `${input}` };
-    }
-    if (Array.isArray(input)) {
-      return input.map(normalized);
-    }
-    if (input && typeof input === 'object') {
-      return Object.fromEntries(
-        Object.entries(input)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([key, inner]) => [key, normalized(inner)]),
-      );
-    }
-    return input;
-  };
-  return JSON.stringify(normalized(value));
-};
 const makeReadPublished = (
   storage: Awaited<
     ReturnType<typeof setupPortfolioTest>
@@ -141,9 +121,7 @@ export const provideMakePrivateArgs = (
   return makePrivateArgs;
 };
 
-const buildDeployBase = async (
-  overrides: Partial<PortfolioPrivateArgs> = {},
-): Promise<DeployBase> => {
+const buildDeployBase = async (): Promise<DeployBase> => {
   let testJig;
   const setJig = jig => (testJig = jig);
   void testJig;
@@ -154,7 +132,6 @@ const buildDeployBase = async (
     await bundleAndInstall(contractExports);
   assert.equal(passStyleOf(installation), 'remotable');
   return {
-    key: stableStringify(overrides),
     supportsFork: true,
     zoe,
     installation,
@@ -220,18 +197,18 @@ const forkDeployBase = async (
   };
 };
 
-const makeDeployFactory = (overrides: Partial<PortfolioPrivateArgs> = {}) => {
-  const overrideKey = stableStringify(overrides);
+const makeDeployFactory = () => {
   let baseP: Promise<DeployBase> | undefined;
 
   const ensureBase = async () => {
     if (!baseP) {
-      baseP = buildDeployBase(overrides);
+      baseP = buildDeployBase();
     }
     return baseP;
   };
 
   const fork = async (
+    overrides: Partial<PortfolioPrivateArgs> = {},
     time: TimeAsync = identityTimeAsync,
   ): Promise<DeployResult> => {
     const base = await ensureBase();
@@ -239,36 +216,33 @@ const makeDeployFactory = (overrides: Partial<PortfolioPrivateArgs> = {}) => {
   };
 
   return {
-    overrideKey,
     ensureBase,
     fork,
     async getFreshClone(
+      overrides: Partial<PortfolioPrivateArgs> = {},
       time: TimeAsync = identityTimeAsync,
     ): Promise<DeployResult> {
-      return fork(time);
+      return fork(overrides, time);
     },
   };
 };
 
-const deployFactoryCache = new Map<string, DeployFactory>();
+let deployFactory: DeployFactory | undefined;
 
-const getDeployFactory = (overrides: Partial<PortfolioPrivateArgs> = {}) => {
-  const factory = makeDeployFactory(overrides);
-  const cached = deployFactoryCache.get(factory.overrideKey);
-  if (cached) {
-    return cached;
+const getDeployFactory = () => {
+  if (!deployFactory) {
+    deployFactory = makeDeployFactory();
   }
-  deployFactoryCache.set(factory.overrideKey, factory);
-  return factory;
+  return deployFactory;
 };
 
 export const deploy = async (
   t: ExecutionContext,
   overrides: Partial<PortfolioPrivateArgs> = {},
 ) => {
-  const factory = getDeployFactory(overrides);
+  const factory = getDeployFactory();
   return timeAsync(t, 'deploy', () =>
-    factory.getFreshClone((label, fn) => timeAsync(t, label, fn)),
+    factory.getFreshClone(overrides, (label, fn) => timeAsync(t, label, fn)),
   );
 };
 
