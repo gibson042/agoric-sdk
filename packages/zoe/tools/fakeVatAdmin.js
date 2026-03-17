@@ -6,12 +6,9 @@ import { makePromiseKit } from '@endo/promise-kit';
 import { Far } from '@endo/marshal';
 import { makeScalarMapStore } from '@agoric/store';
 import { makeScalarBigMapStore } from '@agoric/vat-data';
-import { unsafeSharedBundleCache } from '@agoric/swingset-vat/tools/bundleTool.js';
-import { zoeSourceSpecRegistry } from '../source-spec-registry.js';
-
-import { evalContractBundle } from '../src/contractFacet/evalContractCode.js';
 import { handlePKitWarning } from '../src/handleWarning.js';
 import { makeHandle } from '../src/makeHandle.js';
+import { buildTestRootObject } from './testVatRoot.js';
 
 /**
  * @import {MapStore} from '@agoric/swingset-liveslots';
@@ -19,9 +16,6 @@ import { makeHandle } from '../src/makeHandle.js';
  * @import {DynamicVatOptions} from '@agoric/swingset-vat';
  * @import {CreateVatResults} from '@agoric/swingset-vat';
  */
-
-const bundleCache = await unsafeSharedBundleCache;
-const { zcfBundle } = await bundleCache.loadRegistry(zoeSourceSpecRegistry);
 
 // this simulates a bundlecap, which is normally a swingset "device node"
 /** @type {() => BundleCap} */
@@ -120,11 +114,7 @@ function makeFakeVatAdmin(testContextSetter = undefined, makeRemote = x => x) {
       //   }),
       // );
       const rootP = makeRemote(
-        E(evalContractBundle(zcfBundle)).buildRootObject(
-          vpow,
-          vatParameters,
-          vatBaggage,
-        ),
+        buildTestRootObject(vpow, vatParameters, vatBaggage),
       );
       return E.when(rootP, root =>
         harden({
