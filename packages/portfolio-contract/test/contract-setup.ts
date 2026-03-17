@@ -28,6 +28,7 @@ import {
 } from './mocks.ts';
 import { getResolverMakers, settleTransaction } from './resolver-helpers.ts';
 import { chainInfoWithCCTP, setupPortfolioTest } from './supports.ts';
+import { timeAsync } from './test-timing.ts';
 
 const contractName = 'ymax0';
 type StartFn = typeof contractExports.start;
@@ -102,15 +103,22 @@ export const deploy = async (
   t: ExecutionContext,
   overrides: Partial<PortfolioPrivateArgs> = {},
 ) => {
-  const common = await setupPortfolioTest(t);
+  const common = await timeAsync(t, 'setupPortfolioTest', () =>
+    setupPortfolioTest(t),
+  );
   let testJig;
   const setJig = jig => (testJig = jig);
   const getTestJig = () => testJig;
-  const { zoe, bundleAndInstall } = await setUpZoeForTest({ setJig });
+  const { zoe, bundleAndInstall } = await timeAsync(t, 'setUpZoeForTest', () =>
+    setUpZoeForTest({ setJig }),
+  );
   t.log('contract deployment', contractName);
 
-  const installation: Installation<StartFn> =
-    await bundleAndInstall(contractExports);
+  const installation: Installation<StartFn> = await timeAsync(
+    t,
+    'bundleAndInstall',
+    () => bundleAndInstall(contractExports),
+  );
   t.is(passStyleOf(installation), 'remotable');
 
   const { usdc, poc26, bld } = common.brands;
@@ -121,21 +129,22 @@ export const deploy = async (
     timerService,
   );
 
-  const started = await E(zoe).startInstance(
-    installation,
-    { USDC: usdc.issuer, Fee: bld.issuer, Access: poc26.issuer },
-    {}, // terms
-    makePrivateArgs(overrides), // privateArgs
+  const startResult = await timeAsync(t, 'zoe.startInstance', () =>
+    E(zoe).startInstance(
+      installation,
+      { USDC: usdc.issuer, Fee: bld.issuer, Access: poc26.issuer },
+      {},
+      makePrivateArgs(overrides),
+    ),
   );
   t.notThrows(() =>
     mustMatch(
-      started,
+      startResult,
       M.splitRecord({
         adminFacet: M.remotable(),
         instance: M.remotable(),
         publicFacet: M.remotable(),
         creatorFacet: M.remotable(),
-        // ...others are not relevant here
       }),
     ),
   );
@@ -147,7 +156,7 @@ export const deploy = async (
     },
     zoe,
     contractBaggage,
-    started,
+    started: startResult,
     timerService,
   };
 };
@@ -165,21 +174,22 @@ export const setupTrader = async (
   const { storage } = common.bootstrap;
   const readPublished = makeReadPublished(storage);
 
-  const makeFundedTrader = async () => {
-    const myBalance = usdc.units(initial);
-    const funds = await common.utils.pourPayment(myBalance);
-    const { mint: _, ...poc26SansMint } = poc26;
-    const { mint: _b, ...bldSansMint } = bld;
-    const myWallet = makeWallet(
-      { USDC: usdc, BLD: bldSansMint, Access: poc26SansMint },
-      zoe,
-      when,
-    );
-    await E(myWallet).deposit(funds);
-    await E(myWallet).deposit(poc26.mint.mintPayment(poc26.make(1n)));
-    await E(myWallet).deposit(bld.mint.mintPayment(bld.make(10_000n)));
-    return makeTrader(myWallet, started.instance, readPublished);
-  };
+  const makeFundedTrader = async () =>
+    timeAsync(t, 'makeFundedTrader', async () => {
+      const myBalance = usdc.units(initial);
+      const funds = await common.utils.pourPayment(myBalance);
+      const { mint: _, ...poc26SansMint } = poc26;
+      const { mint: _b, ...bldSansMint } = bld;
+      const myWallet = makeWallet(
+        { USDC: usdc, BLD: bldSansMint, Access: poc26SansMint },
+        zoe,
+        when,
+      );
+      await E(myWallet).deposit(funds);
+      await E(myWallet).deposit(poc26.mint.mintPayment(poc26.make(1n)));
+      await E(myWallet).deposit(bld.mint.mintPayment(bld.make(10_000n)));
+      return makeTrader(myWallet, started.instance, readPublished);
+    });
   const trader1 = await makeFundedTrader();
   const trader2 = await makeFundedTrader();
   const { ibcBridge } = common.mocks;
@@ -191,7 +201,9 @@ export const setupTrader = async (
     ibcBridge.addMockAck(msg, ack);
   }
 
-  const resolverMakers = await getResolverMakers(zoe, started.creatorFacet);
+  const resolverMakers = await timeAsync(t, 'getResolverMakers', () =>
+    getResolverMakers(zoe, started.creatorFacet),
+  );
 
   /**
    * Read pure data (CapData that has no slots) from the storage path
@@ -263,7 +275,13 @@ export const setupTrader = async (
     settleTransaction: settleTx,
   });
 
-  return { ...deployed, makeFundedTrader, trader1, trader2, txResolver };
+  return {
+    ...deployed,
+    makeFundedTrader,
+    trader1,
+    trader2,
+    txResolver,
+  };
 };
 
 export const makeEvmTraderKit = async (
