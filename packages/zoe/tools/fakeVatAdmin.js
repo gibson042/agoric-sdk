@@ -16,6 +16,8 @@ import { makeHandle } from '../src/makeHandle.js';
 /**
  * @import {MapStore} from '@agoric/swingset-liveslots';
  * @import {BundleCap, BundleID, EndoZipBase64Bundle, TestBundle} from '@agoric/swingset-vat';
+ * @import {DynamicVatOptions} from '@agoric/swingset-vat';
+ * @import {CreateVatResults} from '@agoric/swingset-vat';
  */
 
 const bundleCache = await unsafeSharedBundleCache;
@@ -54,6 +56,8 @@ function makeFakeVatAdmin(testContextSetter = undefined, makeRemote = x => x) {
     }),
     testJigSetter: testContextSetter,
   };
+  /** @type {Array<ReturnType<typeof makePromiseKit>>} */
+  const reservedTestJigs = [];
 
   // This is explicitly intended to be mutable so that
   // test-only state can be provided from contracts
@@ -81,8 +85,11 @@ function makeFakeVatAdmin(testContextSetter = undefined, makeRemote = x => x) {
     getBundleIDByName: name => {
       return Promise.resolve().then(() => nameToBundleID.get(name));
     },
+    /** @type {(bundleCap: BundleCap, options?: Partial<DynamicVatOptions>) => Promise<CreateVatResults>} */
     createVat: (bundleCap, { vatParameters = {} } = {}) => {
       bundleCap === zcfBundleCap || Fail`fakeVatAdmin only knows ZCF`;
+      const testJigKit = reservedTestJigs.shift() || makePromiseKit();
+      handlePKitWarning(testJigKit);
       const exitKit = makePromiseKit();
       handlePKitWarning(exitKit);
       const exitVat = completion => {
@@ -93,6 +100,10 @@ function makeFakeVatAdmin(testContextSetter = undefined, makeRemote = x => x) {
       };
       const vpow = harden({
         ...fakeVatPowers,
+        testJigSetter: jig => {
+          testContextSetter?.(jig);
+          testJigKit.resolve(jig);
+        },
         exitVat,
       });
       const vatBaggage = makeScalarBigMapStore('fake vat baggage', {
@@ -162,6 +173,12 @@ function makeFakeVatAdmin(testContextSetter = undefined, makeRemote = x => x) {
       const bid = vatAdminState.getBundleID(base, bundle);
       vatAdminState.installBundle(bid, bundle);
       return bid;
+    },
+    prepareJig: () => {
+      const jigKit = makePromiseKit();
+      handlePKitWarning(jigKit);
+      reservedTestJigs.push(jigKit);
+      return jigKit.promise;
     },
     /**
      * @param {string} id

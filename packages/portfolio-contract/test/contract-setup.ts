@@ -32,13 +32,21 @@ import { getResolverMakers, settleTransaction } from './resolver-helpers.ts';
 import { chainInfoWithCCTP, setupPortfolioTest } from './supports.ts';
 import { timeAsync } from './test-timing.ts';
 
-const contractName = 'ymax0';
 type StartFn = typeof contractExports.start;
 type TimeAsync = <T>(label: string, fn: () => Promise<T>) => Promise<T>;
-type DeployResult = Awaited<ReturnType<typeof deployFromScratch>>;
+type DeployResult = Awaited<ReturnType<typeof forkDeployBase>>;
 type DeployBase = {
   key: string;
   supportsFork: boolean;
+  zoe: ZoeService;
+  installation: Installation<StartFn>;
+  bundleAndInstall: (
+    pathOrExports: object,
+    bundleId?: string,
+  ) => Promise<Installation>;
+  vatAdminState?: {
+    prepareJig?: () => Promise<any>;
+  };
 };
 type DeployFactory = ReturnType<typeof makeDeployFactory>;
 const { values } = Object;
@@ -133,38 +141,51 @@ export const provideMakePrivateArgs = (
   return makePrivateArgs;
 };
 
-const deployFromScratch = async (
+const buildDeployBase = async (
+  overrides: Partial<PortfolioPrivateArgs> = {},
+): Promise<DeployBase> => {
+  let testJig;
+  const setJig = jig => (testJig = jig);
+  void testJig;
+  const { zoe, bundleAndInstall, vatAdminState } = await setUpZoeForTest({
+    setJig,
+  });
+  const installation: Installation<StartFn> =
+    await bundleAndInstall(contractExports);
+  assert.equal(passStyleOf(installation), 'remotable');
+  return {
+    key: stableStringify(overrides),
+    supportsFork: true,
+    zoe,
+    installation,
+    bundleAndInstall,
+    vatAdminState,
+  };
+};
+
+const forkDeployBase = async (
+  base: DeployBase,
   overrides: Partial<PortfolioPrivateArgs> = {},
   time: TimeAsync = identityTimeAsync,
 ) => {
   const common = await time('setupPortfolioTest', () =>
     setupPortfolioTest({ log: noopLog }),
   );
-  let testJig;
-  const setJig = jig => (testJig = jig);
-  const getTestJig = () => testJig;
-  const { zoe, bundleAndInstall } = await time('setUpZoeForTest', () =>
-    setUpZoeForTest({ setJig }),
-  );
-
-  const installation: Installation<StartFn> = await time(
-    'bundleAndInstall',
-    () => bundleAndInstall(contractExports),
-  );
-  assert.equal(passStyleOf(installation), 'remotable');
-
-  const { usdc, poc26, bld } = common.brands;
   const timerService = buildZoeManualTimer();
-
   const makePrivateArgs = provideMakePrivateArgs(
     common.commonPrivateArgs,
     timerService,
   );
+  const jigP = base.vatAdminState?.prepareJig?.();
 
   const started = await time('zoe.startInstance', () =>
-    E(zoe).startInstance(
-      installation,
-      { USDC: usdc.issuer, Fee: bld.issuer, Access: poc26.issuer },
+    E(base.zoe).startInstance(
+      base.installation,
+      {
+        USDC: common.brands.usdc.issuer,
+        Fee: common.brands.bld.issuer,
+        Access: common.brands.poc26.issuer,
+      },
       {},
       makePrivateArgs(overrides),
     ),
@@ -180,35 +201,23 @@ const deployFromScratch = async (
       }),
     ),
   );
-  const { baggage: contractBaggage } = getTestJig();
+  const testJig = jigP ? await jigP : undefined;
+  const contractBaggage = testJig?.baggage;
   return {
     common: {
       ...common,
-      utils: { ...common.utils, bundleAndInstall, getTestJig, makePrivateArgs },
+      utils: {
+        ...common.utils,
+        bundleAndInstall: base.bundleAndInstall,
+        getTestJig: () => testJig,
+        makePrivateArgs,
+      },
     },
-    zoe,
+    zoe: base.zoe,
     contractBaggage,
     started,
     timerService,
   };
-};
-
-const buildDeployBase = async (
-  overrides: Partial<PortfolioPrivateArgs> = {},
-): Promise<DeployBase> => {
-  return {
-    key: stableStringify(overrides),
-    supportsFork: false,
-  };
-};
-
-const forkDeployBase = async (
-  _base: DeployBase,
-  overrides: Partial<PortfolioPrivateArgs> = {},
-  time: TimeAsync = identityTimeAsync,
-): Promise<DeployResult> => {
-  // Placeholder until lower-level test setup supports snapshot/restore.
-  return deployFromScratch(overrides, time);
 };
 
 const makeDeployFactory = (overrides: Partial<PortfolioPrivateArgs> = {}) => {
