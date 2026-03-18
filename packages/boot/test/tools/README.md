@@ -66,7 +66,15 @@ Local dev and CI use the same fingerprint logic.
   - the stored `snapshotFingerprint` does not match the current fingerprint
   - the stored kernel bundle hash does not match the saved bundle file
   - the current kernel bundle hash does not match the metadata
-- CI computes the cache key by invoking `create-runutils-snapshot.ts --cache-key`, which calls `computeRunUtilsSnapshotsFingerprint()`
+- Local regeneration also times out if another process holds the snapshot lock
+  for too long, rather than waiting forever on a stale `.lock`.
+- CI restores per-snapshot caches in each boot shard, using
+  `create-runutils-snapshot.ts --cache-keys` to compute the exact keys once per
+  job.
+- On a cache miss, the boot tests call `loadOrCreateRunUtilsSnapshot(name)` and
+  regenerate only the snapshots that shard actually needs.
+- After the test run, CI saves back only snapshots that this shard actually
+  regenerated, using `.ci-regenerated/` marker files.
 
 This keeps local staleness checks and CI cache invalidation aligned.
 
@@ -101,5 +109,8 @@ it", the fingerprint rules must be expanded along with that snapshot.
 
 - `--list`: list known snapshot names
 - `--all`: generate all snapshots
-- `--cache-key`: print the aggregate fingerprint used by CI
+- `--cache-key`: print the aggregate fingerprint used by tooling that wants one combined key
+- `--cache-key <name>`: print one snapshot fingerprint for per-snapshot cache keys
+- `--cache-keys`: print all per-snapshot fingerprints in one JSON object
+- `--check <name>`: exit successfully if the named snapshot on disk is current
 - `<name>`: generate a single snapshot

@@ -93,6 +93,9 @@ const snapshotKernelBundlePath = (name: RunUtilsSnapshotName) =>
   `${snapshotPath(name)}/kernel-bundle.json`;
 const snapshotLockPath = (name: RunUtilsSnapshotName) =>
   `${snapshotPath(name)}.lock`;
+const regeneratedMarkerDir = `${snapshotDir}/.ci-regenerated`;
+const regeneratedMarkerPath = (name: RunUtilsSnapshotName) =>
+  `${regeneratedMarkerDir}/${name}`;
 
 export const availableRunUtilsSnapshotNames = (): RunUtilsSnapshotName[] =>
   listNames().filter(isRunUtilsSnapshotName);
@@ -206,6 +209,8 @@ export const createRunUtilsSnapshot = async (
       JSON.stringify(metadata, null, 2),
       'utf-8',
     );
+    await fs.mkdir(regeneratedMarkerDir, { recursive: true });
+    await fs.writeFile(regeneratedMarkerPath(name), '', 'utf-8');
     return path;
   } finally {
     await kit.shutdown();
