@@ -11,6 +11,40 @@ Use these path conventions under `packages/boot/test`:
 Runutils snapshots are generated, fingerprinted, and rebuilt on demand, so they
 belong under `test/cache`, not `test/fixtures`.
 
+## Test ordering
+
+`packages/boot` uses an explicit AVA `sortTestFiles` comparator in
+`packages/boot/ava.config.mjs`.
+
+That comparator, `byExplicitBootOrder`, makes AVA's sorted file list follow the
+fixed `bootTestOrder` sequence.
+
+That order serves two purposes:
+
+- spread the known slow boot tests across the 4 CI shards
+- keep smaller groups of tests that reuse the same runutils snapshot near each other
+
+AVA sorts the full file list and then slices it contiguously for CI sharding, so
+adding a new test file can otherwise move unrelated heavy tests onto a slower
+shard. When adding a new boot test, update `bootTestOrder` so shard balance and
+snapshot locality stay intentional.
+
+If a new boot test is omitted from `bootTestOrder`, it still runs. The
+comparator places it after all listed tests and falls back to normal path
+sorting among unlisted files, which preserves correctness but can silently
+reintroduce shard skew and poorer snapshot locality.
+
+The order is intentionally optimized for snapshot-family fanout first, then
+balance:
+
+- tests that reuse the same snapshot should stay in the same shard whenever practical
+- small snapshot families should not be split just to make the shard list look more even
+- only large or non-snapshot tests should be used to smooth out shard runtimes
+
+This matters because a cold CI run can regenerate the same snapshot once per
+shard that needs it. Keeping each snapshot family in as few shards as possible
+reduces duplicated cold-start work.
+
 ## Runutils snapshots
 
 `runutils-snapshots.ts` manages reusable boot snapshots for `packages/boot` tests.
