@@ -168,7 +168,7 @@ export const watchOperationResult = ({
   WatcherTimeoutOptions & {
     retryOptions?: RetryOptions;
   }): Promise<WatcherResult> => {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       resolve({ settled: false });
       return;
@@ -177,10 +177,6 @@ export const watchOperationResult = ({
     // The txId must be padded to match sourceAddress length
     const paddedTxId = padTxId(txId, sourceAddress);
     const expectedIdHash = id(paddedTxId);
-    const filter: Filter = {
-      address: routerAddress,
-      topics: [OPERATION_RESULT_SIGNATURE, expectedIdHash],
-    };
 
     log(
       `Watching for OperationResult on router ${routerAddress} with id: ${txId}`,
@@ -208,163 +204,187 @@ export const watchOperationResult = ({
       for (const cleanup of cleanups) cleanup();
     };
 
+    /**
+     * Cleanup and reject with error.
+     * Used for fatal errors where we cannot continue watching (e.g., WebSocket failure,
+     * subscription failure). This indicates the WATCHING failed, not that the transaction
+     * failed.
+     */
+    const fail = (err: unknown) => {
+      if (done) return;
+      done = true;
+
+      if (timeoutId) clearTimeout(timeoutId);
+
+      reject(err);
+      if (subId) {
+        void provider
+          .send('eth_unsubscribe', [subId])
+          .catch(error =>
+            log('Failed to unsubscribe during error cleanup:', error),
+          );
+      }
+      for (const cleanup of cleanups) cleanup();
+    };
+
+    const onWsError = (e: any) => {
+      const errorMsg = e?.message || String(e);
+      log(
+        `WebSocket error during OperationResult watch for txId=${txId}: ${errorMsg}`,
+      );
+      fail(new Error(`WebSocket connection error: ${errorMsg}`));
+    };
+
+    const onWsClose = (code?: number, reason?: any) => {
+      if (!done) {
+        log(
+          `WebSocket closed during OperationResult watch for txId=${txId} (code=${code}, reason=${reason})`,
+        );
+        fail(
+          new Error(`WebSocket closed unexpectedly: ${reason} (code=${code})`),
+        );
+      }
+    };
+
+    ws.on('error', onWsError);
+    cleanups.unshift(() => ws.off('error', onWsError));
+
+    ws.on('close', onWsClose);
+    cleanups.unshift(() => ws.off('close', onWsClose));
+
     if (signal) {
       const onAbort = () => finish({ settled: false });
       signal.addEventListener('abort', onAbort);
       cleanups.unshift(() => signal.removeEventListener('abort', onAbort));
     }
 
-    // Primary path: OperationResult event listener
-    const listenForOperationResult = async (eventLog: Log) => {
+    const messageHandler = async (data: any) => {
       await null;
       if (done) return;
-      try {
-        const { success } = parseOperationResultLog(eventLog);
 
-        if (success) {
-          const txHash = eventLog.transactionHash;
-          log(`✅ SUCCESS: expectedId=${txId} txHash=${txHash}`);
-          return finish({ settled: true, txHash, success: true });
+      try {
+        const msg = tryJsonParse(
+          data.toString(),
+          'alchemy_minedTransactions subscription response',
+        ) as AlchemySubscriptionMessage;
+
+        if (msg.method !== 'eth_subscription') return;
+
+        const tx = msg.params?.result?.transaction;
+        const removed = msg.params?.result?.removed;
+        if (!tx) return;
+
+        if (removed === true) {
+          log(
+            `⚠️  REORG: txId=${txId} txHash=${tx.hash} was removed from chain - ignoring`,
+          );
+          return;
         }
 
-        // Failure case: wait for confirmations before declaring failure
-        const result = await handleOperationFailure(
-          eventLog,
-          filter,
-          parseOperationResultLog,
-          `expectedId=${txId}`,
-          chainId,
+        const txHash = tx.hash;
+        const txData = tx.input;
+        if (!txHash || !txData) return;
+
+        if (
+          !matchesTxPayload(txData, paddedTxId, payloadHash, log, txHash, txId)
+        )
+          return;
+
+        const receipt = await fetchReceiptWithRetry(
           provider,
+          txHash,
           log,
+          retryOptions,
+          setTimeout,
+        );
+        if (!receipt) {
+          log(`Transaction ${txHash} not confirmed after waiting`);
+          return;
+        }
+
+        // Check for OperationResult event in receipt
+        const operationResultLog = receipt.logs.find(
+          (l: any) =>
+            l.topics?.[0] === OPERATION_RESULT_SIGNATURE &&
+            l.topics?.[1] === expectedIdHash,
         );
 
-        if (result) {
-          return finish(result);
-        }
-      } catch (error: any) {
-        log(`Error:`, error);
-      }
-    };
+        if (operationResultLog) {
+          const { success } = parseOperationResultLog(operationResultLog);
 
-    void provider.on(filter, listenForOperationResult);
-    cleanups.unshift(() => {
-      void provider.off(filter, listenForOperationResult);
-    });
-
-    // Secondary path: Alchemy mined-tx subscription for revert detection
-    {
-      const messageHandler = async (data: any) => {
-        await null;
-        if (done) return;
-
-        try {
-          const msg = tryJsonParse(
-            data.toString(),
-            'alchemy_minedTransactions subscription response',
-          ) as AlchemySubscriptionMessage;
-
-          if (msg.method !== 'eth_subscription') return;
-
-          const tx = msg.params?.result?.transaction;
-          const removed = msg.params?.result?.removed;
-          if (!tx) return;
-
-          if (removed === true) {
-            log(
-              `⚠️  REORG: txId=${txId} txHash=${tx.hash} was removed from chain - ignoring`,
-            );
-            return;
+          if (success) {
+            log(`✅ SUCCESS: expectedId=${txId} txHash=${txHash}`);
+            return finish({ settled: true, txHash, success: true });
           }
 
-          const txHash = tx.hash;
-          const txData = tx.input;
-          if (!txHash || !txData) return;
-
-          if (
-            !matchesTxPayload(
-              txData,
-              paddedTxId,
-              payloadHash,
-              log,
-              txHash,
-              txId,
-            )
-          )
-            return;
-
-          const receipt = await fetchReceiptWithRetry(
-            provider,
-            txHash,
-            log,
-            retryOptions,
-            setTimeout,
-          );
-          if (!receipt) {
-            log(`Transaction ${txHash} not confirmed after waiting`);
-            return;
-          }
-
-          // If receipt has an OperationResult event, let the event listener handle it
-          const hasOperationResultEvent = receipt.logs.some(
-            l =>
-              l.topics?.[0] === OPERATION_RESULT_SIGNATURE &&
-              l.topics?.[1] === expectedIdHash,
-          );
-          if (hasOperationResultEvent) return;
-
-          // Transaction reverted (status=0) without emitting OperationResult
-          const result = await handleTxRevert(
-            receipt,
-            txHash,
-            `txId=${txId}`,
+          // Event-level failure: wait for confirmations before declaring failure
+          const filter: Filter = {
+            address: routerAddress,
+            topics: [OPERATION_RESULT_SIGNATURE, expectedIdHash],
+          };
+          const result = await handleOperationFailure(
+            operationResultLog,
+            filter,
+            parseOperationResultLog,
+            `expectedId=${txId}`,
             chainId,
             provider,
             log,
           );
+
           if (result) {
             return finish(result);
           }
-        } catch (e) {
-          log(
-            `Error processing WebSocket message for txId=${txId}:`,
-            e instanceof Error ? e.message : String(e),
-          );
+          return;
         }
-      };
 
-      const subscribe = async () => {
-        await provider.getNetwork();
-
-        ws.on('message', messageHandler);
-        cleanups.unshift(() => ws.off('message', messageHandler));
-
-        subId = await provider.send('eth_subscribe', [
-          'alchemy_minedTransactions',
-          {
-            addresses: [{ to: routerAddress }],
-            includeRemoved: true,
-            hashesOnly: false,
-          },
-        ]);
-      };
-
-      if (ws.readyState === 1) {
-        subscribe().catch(e => {
-          log(`Alchemy subscription failed (non-fatal):`, e);
-        });
-      } else {
-        ws.once('open', () =>
-          subscribe().catch(e => {
-            log(`Alchemy subscription failed (non-fatal):`, e);
-          }),
+        // No OperationResult event — check for transaction revert
+        const result = await handleTxRevert(
+          receipt,
+          txHash,
+          `txId=${txId}`,
+          chainId,
+          provider,
+          log,
+        );
+        if (result) {
+          return finish(result);
+        }
+      } catch (e) {
+        log(
+          `Error processing WebSocket message for txId=${txId}:`,
+          e instanceof Error ? e.message : String(e),
         );
       }
+    };
+
+    const subscribe = async () => {
+      await provider.getNetwork();
+
+      ws.on('message', messageHandler);
+      cleanups.unshift(() => ws.off('message', messageHandler));
+
+      subId = await provider.send('eth_subscribe', [
+        'alchemy_minedTransactions',
+        {
+          addresses: [{ to: routerAddress }],
+          includeRemoved: true,
+          hashesOnly: false,
+        },
+      ]);
+      log(`Subscribed with subId=${subId} for router=${routerAddress}`);
+    };
+
+    if (ws.readyState === 1) {
+      subscribe().catch(fail);
+    } else {
+      ws.once('open', () => subscribe().catch(fail));
     }
 
     timeoutId = setTimeout(() => {
       if (!done) {
         log(
-          `✗ No matching OperationResult found within ${timeoutMs / 60000} minutes`,
+          `[${PendingTxCode.ROUTED_GMP_TX_NOT_FOUND}] ✗ No matching OperationResult found within ${timeoutMs / 60000} minutes`,
         );
       }
     }, timeoutMs);
@@ -422,8 +442,6 @@ export const lookBackOperationResult = async ({
       topics: [OPERATION_RESULT_SIGNATURE, expectedIdHash],
     };
 
-    const abiCoder = new AbiCoder();
-
     const updateFailedTxLowerBound = (_from: number, to: number) =>
       setTxBlockLowerBound(kvStore, txId, to, FAILED_TX_SCOPE);
 
@@ -447,7 +465,7 @@ export const lookBackOperationResult = async ({
       onRejectedChunk: (_from, to) => setTxBlockLowerBound(kvStore, txId, to),
       predicate: ev => {
         try {
-          const parsed = parseOperationResultLog(ev, abiCoder);
+          const parsed = parseOperationResultLog(ev);
           log(`Check: idHash=${parsed.idHash} success=${parsed.success}`);
           return parsed.idHash === expectedIdHash;
         } catch (e) {
@@ -458,7 +476,7 @@ export const lookBackOperationResult = async ({
     });
 
     if (matchingEvent) {
-      const parsed = parseOperationResultLog(matchingEvent, abiCoder);
+      const parsed = parseOperationResultLog(matchingEvent);
       const txHash = matchingEvent.transactionHash;
 
       if (parsed.success) {
@@ -472,7 +490,7 @@ export const lookBackOperationResult = async ({
       const result = await handleOperationFailure(
         matchingEvent,
         baseFilter,
-        logEntry => parseOperationResultLog(logEntry, abiCoder),
+        parseOperationResultLog,
         `txId=${txId}`,
         chainId,
         provider,
