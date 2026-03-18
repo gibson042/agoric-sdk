@@ -146,14 +146,24 @@ export const computeRunUtilsSnapshotFingerprint = async (
   return hash.digest('hex');
 };
 
+export const computeRunUtilsSnapshotFingerprints = async () => {
+  const kernelBundleSha512 = (await buildKernelBundle()).endoZipBase64Sha512;
+  const names = availableRunUtilsSnapshotNames().sort();
+  return Object.fromEntries(
+    await Promise.all(
+      names.map(async name => [
+        name,
+        await computeRunUtilsSnapshotFingerprint(name, kernelBundleSha512),
+      ]),
+    ),
+  ) as Record<RunUtilsSnapshotName, string>;
+};
+
 export const computeRunUtilsSnapshotsFingerprint = async () => {
   const hash = createHash('sha512');
-  const names = availableRunUtilsSnapshotNames().sort();
-  const kernelBundleSha512 = (await buildKernelBundle()).endoZipBase64Sha512;
-  for (const name of names) {
-    hash.update(
-      `${name}:${await computeRunUtilsSnapshotFingerprint(name, kernelBundleSha512)}\n`,
-    );
+  const fingerprints = await computeRunUtilsSnapshotFingerprints();
+  for (const name of Object.keys(fingerprints).sort()) {
+    hash.update(`${name}:${fingerprints[name as RunUtilsSnapshotName]}\n`);
   }
   return hash.digest('hex');
 };
