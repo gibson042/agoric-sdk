@@ -278,12 +278,16 @@ export const loadOrCreateRunUtilsSnapshot = async (
     try {
       try {
         return await loadRunUtilsSnapshot(name);
-      } catch (cause) {
+      } catch {
         log(
           `RunUtils snapshot ${name} missing or stale; regenerating at ${snapshotPath(name)}`,
-          cause,
         );
+        const regenStart = performance.now();
         await createRunUtilsSnapshot(name, log);
+        const regenMs = Math.round(performance.now() - regenStart);
+        log(
+          `RunUtils snapshot ${name} regenerated in ${(regenMs / 1000).toFixed(1)}s (${regenMs}ms)`,
+        );
         return loadRunUtilsSnapshot(name);
       }
     } finally {
