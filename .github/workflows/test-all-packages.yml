@@ -19,6 +19,7 @@ env:
   AGORIC_AVA_USE_TAP: true
   NODE_V8_COVERAGE: coverage
   TEST_COLLECT: 'tee -a _testoutput.txt'
+  BOOT_FIXTURE_CACHE_VERSION: '1'
 
 # this is required, since explicitly setting bash as shell enables pipefail, which is not
 # on by default.  This is required to fail correctly when teeing output to a file to collect
@@ -664,10 +665,57 @@ jobs:
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
           gcp-credentials: ${{ secrets.GCP_CREDENTIALS }}
 
+  boot-fixtures-cache:
+    timeout-minutes: 40
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/restore-node
+        with:
+          node-version: 'node-new'
+      - name: Restore boot fixture cache
+        id: boot-fixture-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: packages/boot/test/fixtures/runutils
+          key: >-
+            boot-runutils-fixtures-${{ env.BOOT_FIXTURE_CACHE_VERSION }}-${{
+            hashFiles(
+              'packages/boot/test/tools/runutils-fixtures.ts',
+              'packages/boot/tools/supports.ts',
+              'packages/vm-config/decentral-demo-config.json',
+              'packages/vm-config/decentral-main-vaults-config.json',
+              'packages/vm-config/decentral-itest-vaults-config.json',
+              'packages/vm-config/decentral-itest-orchestration-config.json',
+              'packages/builders/scripts/vats/init-orchestration.js',
+              'packages/builders/scripts/orchestration/write-chain-info.js'
+            ) }}
+      - name: Generate boot fixtures
+        if: steps.boot-fixture-cache.outputs.cache-hit != 'true'
+        run: cd packages/boot && yarn make:runutils-fixtures
+      - name: Save boot fixture cache
+        if: steps.boot-fixture-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: packages/boot/test/fixtures/runutils
+          key: >-
+            boot-runutils-fixtures-${{ env.BOOT_FIXTURE_CACHE_VERSION }}-${{
+            hashFiles(
+              'packages/boot/test/tools/runutils-fixtures.ts',
+              'packages/boot/tools/supports.ts',
+              'packages/vm-config/decentral-demo-config.json',
+              'packages/vm-config/decentral-main-vaults-config.json',
+              'packages/vm-config/decentral-itest-vaults-config.json',
+              'packages/vm-config/decentral-itest-orchestration-config.json',
+              'packages/builders/scripts/vats/init-orchestration.js',
+              'packages/builders/scripts/orchestration/write-chain-info.js'
+            ) }}
+
   test-boot:
     # BEGIN-TEST-BOILERPLATE
     timeout-minutes: 40
-    needs: build
+    needs: [build, boot-fixtures-cache]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -688,6 +736,28 @@ jobs:
         with:
           node-version: ${{ matrix.engine }}
       # END-TEST-BOILERPLATE
+      - name: Restore boot fixture cache
+        id: boot-fixture-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: packages/boot/test/fixtures/runutils
+          key: >-
+            boot-runutils-fixtures-${{ env.BOOT_FIXTURE_CACHE_VERSION }}-${{
+            hashFiles(
+              'packages/boot/test/tools/runutils-fixtures.ts',
+              'packages/boot/tools/supports.ts',
+              'packages/vm-config/decentral-demo-config.json',
+              'packages/vm-config/decentral-main-vaults-config.json',
+              'packages/vm-config/decentral-itest-vaults-config.json',
+              'packages/vm-config/decentral-itest-orchestration-config.json',
+              'packages/builders/scripts/vats/init-orchestration.js',
+              'packages/builders/scripts/orchestration/write-chain-info.js'
+            ) }}
+      - name: Enforce boot fixture cache presence
+        if: steps.boot-fixture-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "Expected boot snapshot cache to be populated by boot-fixtures-cache job"
+          exit 1
       - name: yarn test (boot)
         if: (success() || failure())
         run: cd packages/boot && yarn ${{ steps.vars.outputs.test }} | $TEST_COLLECT

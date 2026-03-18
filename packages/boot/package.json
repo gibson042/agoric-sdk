@@ -11,6 +11,7 @@
     "test": "ava",
     "test:xs": "SWINGSET_WORKER_TYPE=xs-worker ava test",
     "make:runutils-fixture": "node --import ts-blank-space/register ./test/tools/create-runutils-fixture.ts",
+    "make:runutils-fixtures": "node --import ts-blank-space/register ./test/tools/create-runutils-fixture.ts --all",
     "lint-fix": "yarn lint:eslint --fix",
     "lint": "yarn run -T run-s --continue-on-error 'lint:*'",
     "lint:types": "yarn run -T tsc",
