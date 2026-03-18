@@ -7,6 +7,12 @@ on:
   merge_group:
   push:
     branches: [master]
+  workflow_dispatch:
+    inputs:
+      boot_snapshot_cache_version:
+        description: Boot snapshot cache version override for manual reruns
+        required: false
+        default: '3'
   schedule:
     # We start a little earlier to give our build cache time to populate.
     - cron: '47 5 * * *'
@@ -19,7 +25,7 @@ env:
   AGORIC_AVA_USE_TAP: true
   NODE_V8_COVERAGE: coverage
   TEST_COLLECT: 'tee -a _testoutput.txt'
-  BOOT_SNAPSHOT_CACHE_VERSION: '2'
+  BOOT_SNAPSHOT_CACHE_VERSION: ${{ inputs.boot_snapshot_cache_version || '3' }}
 
 # this is required, since explicitly setting bash as shell enables pipefail, which is not
 # on by default.  This is required to fail correctly when teeing output to a file to collect
