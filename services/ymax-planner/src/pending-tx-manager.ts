@@ -160,12 +160,14 @@ const cctpMonitor: PendingTxMonitor<CctpTx, EvmContext> = {
         kvStore: ctx.kvStore,
         txId,
       });
-      void liveResultP.then(result => {
-        if (result.settled) {
-          log(`${logPrefix} Live mode completed`);
-          abortController.abort();
-        }
-      });
+      void liveResultP
+        .then(result => {
+          if (result.settled) {
+            log(`${logPrefix} Live mode completed`);
+            abortController.abort();
+          }
+        })
+        .catch(e => log(`${logPrefix} Live watcher failed:`, e));
 
       await null;
       // Wait for at least one block to ensure overlap between lookback and live mode
@@ -281,13 +283,15 @@ const gmpMonitor: PendingTxMonitor<GmpTx, EvmContext> = {
       // Attach handler to abort lookback if live mode completes first with
       // a definitive result. This handler does NOT resolve the transaction -
       // resolution happens once at the end to prevent duplicate resolutions.
-      void liveResultP.then(result => {
-        if (result.settled) {
-          const reason = `${logPrefix} Live mode completed`;
-          log(reason);
-          abortController.abort(reason);
-        }
-      });
+      void liveResultP
+        .then(result => {
+          if (result.settled) {
+            const reason = `${logPrefix} Live mode completed`;
+            log(reason);
+            abortController.abort(reason);
+          }
+        })
+        .catch(e => log(`${logPrefix} Live watcher failed:`, e));
 
       await null;
       // Wait for at least one block to ensure overlap between lookback and live mode
@@ -416,12 +420,14 @@ const makeAccountMonitor: PendingTxMonitor<MakeAccountTx, EvmContext> = {
         signal: abortController.signal,
         txId,
       });
-      void liveResultP.then(result => {
-        if (result.settled) {
-          log(`${logPrefix} Live mode completed`);
-          abortController.abort();
-        }
-      });
+      void liveResultP
+        .then(result => {
+          if (result.settled) {
+            log(`${logPrefix} Live mode completed`);
+            abortController.abort();
+          }
+        })
+        .catch(e => log(`${logPrefix} Live watcher failed:`, e));
 
       await null;
 
@@ -530,13 +536,15 @@ const routedGmpMonitor: PendingTxMonitor<RoutedGmpTx, EvmContext> = {
         signal: abortController.signal,
       });
 
-      void liveResultP.then(result => {
-        if (result.settled) {
-          const reason = `${logPrefix} Live mode completed`;
-          log(reason);
-          abortController.abort(reason);
-        }
-      });
+      void liveResultP
+        .then(result => {
+          if (result.settled) {
+            const reason = `${logPrefix} Live mode completed`;
+            log(reason);
+            abortController.abort(reason);
+          }
+        })
+        .catch(e => log(`${logPrefix} Live watcher failed:`, e));
 
       await null;
       // Wait for at least one block to ensure overlap between lookback and live mode

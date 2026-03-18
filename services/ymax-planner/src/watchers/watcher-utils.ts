@@ -371,7 +371,7 @@ export const handleOperationFailure = async <T extends { success: boolean }>(
 
   const finalBlock = confirmedReceipt.blockNumber;
 
-  // Re-fetch logs to verify the failure is still present
+  // Fetch logs to verify the failure is still present
   const logsInBlock = await provider.getLogs({
     ...filter,
     fromBlock: finalBlock,
@@ -382,7 +382,7 @@ export const handleOperationFailure = async <T extends { success: boolean }>(
 
   if (!confirmedLog) {
     log(
-      `Event not found after ${confirmations} confirmations (possibly reorged): ${identifier} txHash=${txHash}`,
+      `Event not found after ${confirmations} confirmations (possibly reorged or tx reverted): ${identifier} txHash=${txHash}`,
     );
     return null;
   }
