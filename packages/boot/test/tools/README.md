@@ -21,8 +21,8 @@ fixed `bootTestOrder` sequence.
 
 That order serves two purposes:
 
-- spread the known slow boot tests across the 4 CI shards
-- keep smaller groups of tests that reuse the same runutils snapshot near each other
+- keep tests that reuse the same runutils snapshot in as few CI shards as possible
+- spread the remaining heavy tests across the 4 CI shards where that does not increase snapshot-family fanout
 
 AVA sorts the full file list and then slices it contiguously for CI sharding, so
 adding a new test file can otherwise move unrelated heavy tests onto a slower
