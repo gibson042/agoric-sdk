@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /* eslint-env node */
 // @ts-check
-// @jessie-check
 
 import '@endo/init';
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 /* eslint-env node */
-// @jessie-check
 
 import '@endo/init/legacy.js';
 

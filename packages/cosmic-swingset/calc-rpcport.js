@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @jessie-check
 
 // NOTE: Runs outside SES
 

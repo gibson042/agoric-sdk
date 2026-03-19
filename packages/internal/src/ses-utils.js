@@ -1,5 +1,4 @@
 // @ts-check
-// @jessie-check
 /**
  * @file Utility functions that are dependent upon a hardened environment,
  *   either directly or indirectly (e.g. by @endo imports).

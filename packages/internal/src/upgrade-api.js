@@ -1,5 +1,4 @@
 // @ts-check
-// @jessie-check
 
 import { M, matches } from '@endo/patterns';
 

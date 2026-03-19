@@ -1,5 +1,4 @@
 #! /usr/bin/env node
-// @jessie-check
 
 import '@endo/init/pre.js';
 
