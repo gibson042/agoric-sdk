@@ -10,6 +10,7 @@ import {
 } from '../../tools/supports.js';
 
 const SNAPSHOT_VERSION = 1;
+const SNAPSHOT_LOCK_WAIT_MS = 15 * 60_000;
 
 const here = dirname(fileURLToPath(import.meta.url));
 const snapshotDir = resolve(here, '../cache/runutils');
@@ -232,6 +233,7 @@ export const loadOrCreateRunUtilsSnapshot = async (
   log: (...args: unknown[]) => void = console.log,
 ): Promise<SwingsetTestKitSnapshot> => {
   const lockPath = snapshotLockPath(name);
+  const waitStart = performance.now();
   await fs.mkdir(snapshotDir, { recursive: true });
   for (;;) {
     try {
@@ -244,6 +246,12 @@ export const loadOrCreateRunUtilsSnapshot = async (
       lock = await fs.open(lockPath, 'wx');
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'EEXIST') {
+        const waitMs = performance.now() - waitStart;
+        if (waitMs > SNAPSHOT_LOCK_WAIT_MS) {
+          throw new Error(
+            `Timed out waiting ${(waitMs / 1000).toFixed(1)}s for snapshot lock ${lockPath}`,
+          );
+        }
         await delay(100);
         continue;
       }

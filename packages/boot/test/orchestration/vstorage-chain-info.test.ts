@@ -28,7 +28,7 @@ type ChainInfoState = {
 type ChainInfoContext = {
   harness?: ReturnType<typeof makeSwingsetHarness>;
   state: ChainInfoState;
-  markConfigVerified: () => void;
+  markConfigVerified: (error?: unknown) => void;
   makeBootContext: (
     t: ExecutionContext<unknown>,
   ) => Promise<WalletFactoryTestContext>;
@@ -49,9 +49,20 @@ test.before(async t => {
 
   const harness = managerType === 'xsnap' ? makeSwingsetHarness() : undefined;
 
-  let resolveConfigVerified = () => {};
-  const configVerified = new Promise<void>(resolve => {
-    resolveConfigVerified = resolve;
+  let settleConfigVerified = (_error?: unknown) => {};
+  const configVerified = new Promise<void>((resolve, reject) => {
+    let settled = false;
+    settleConfigVerified = error => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    };
   });
 
   const makeBootContext = (t0: ExecutionContext<unknown>) =>
@@ -72,7 +83,7 @@ test.before(async t => {
       configVerified,
       revisedReady: configVerified,
     },
-    markConfigVerified: () => resolveConfigVerified(),
+    markConfigVerified: settleConfigVerified,
     makeBootContext,
   };
 });
@@ -82,9 +93,15 @@ test.before(async t => {
  */
 test('config', async t => {
   await t.context.state.bootReady;
-  const ctx = await t.context.makeBootContext(t);
-  t.teardown(async () => ctx.shutdown());
+  let ctx: WalletFactoryTestContext | undefined;
   t.teardown(() => t.context.markConfigVerified());
+  try {
+    ctx = await t.context.makeBootContext(t);
+  } catch (error) {
+    t.context.markConfigVerified(error);
+    throw error;
+  }
+  t.teardown(async () => ctx.shutdown());
 
   const {
     storage,
