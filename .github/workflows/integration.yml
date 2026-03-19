@@ -152,7 +152,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: 'true'
           path: ./agoric-sdk
       - run: sudo packages/deployment/scripts/install-deps.sh
         working-directory: ./agoric-sdk
