@@ -6,7 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
 import { FlatCompat } from '@eslint/eslintrc';
-import { createRequire } from 'module';
+import { createRequire } from 'node:module';
+import nodePlugin from 'eslint-plugin-n';
 import { legacySrcToToolsFiles } from './scripts/ci/tools-scope-policy.mjs';
 
 // Workaround for https://github.com/anza-xyz/eslint-plugin-require-extensions/issues/18
@@ -73,6 +74,7 @@ export default [
     plugins: {
       '@typescript-eslint': typescriptEslint,
       'require-extensions': fixupPluginRules(requireExtensions),
+      n: nodePlugin,
     },
 
     linterOptions: {
@@ -152,6 +154,8 @@ export default [
           ],
         },
       ],
+
+      'n/prefer-node-protocol': 'error',
 
       'jsdoc/no-defaults': 'off',
       'no-use-before-define': 'off',
