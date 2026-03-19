@@ -743,22 +743,6 @@ jobs:
           key: ${{ steps.boot-snapshot-keys.outputs.orchestration_base }}
           restore-keys: |
             boot-runutils-snapshot-orchestration-base-${{ env.BOOT_SNAPSHOT_CACHE_VERSION }}-
-      - name: Restore orchestration-ready snapshot cache
-        id: orchestration_ready_cache
-        uses: actions/cache/restore@v4
-        with:
-          path: packages/boot/test/cache/runutils/orchestration-ready
-          key: ${{ steps.boot-snapshot-keys.outputs.orchestration_ready }}
-          restore-keys: |
-            boot-runutils-snapshot-orchestration-ready-${{ env.BOOT_SNAPSHOT_CACHE_VERSION }}-
-      - name: Restore vow-offer-results snapshot cache
-        id: vow_offer_results_cache
-        uses: actions/cache/restore@v4
-        with:
-          path: packages/boot/test/cache/runutils/vow-offer-results
-          key: ${{ steps.boot-snapshot-keys.outputs.vow_offer_results }}
-          restore-keys: |
-            boot-runutils-snapshot-vow-offer-results-${{ env.BOOT_SNAPSHOT_CACHE_VERSION }}-
       - name: yarn test (boot)
         if: (success() || failure())
         run: cd packages/boot && yarn ${{ steps.vars.outputs.test }} | $TEST_COLLECT

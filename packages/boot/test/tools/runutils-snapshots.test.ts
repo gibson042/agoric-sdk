@@ -17,14 +17,12 @@ test('runutils snapshot names are exposed and validated', t => {
   t.true(names.includes('main-vaults-base'));
   t.true(names.includes('itest-vaults-base'));
   t.true(names.includes('orchestration-base'));
-  t.true(names.includes('orchestration-ready'));
-  t.true(names.includes('vow-offer-results'));
+  t.false(namesAsStrings.includes(removedSnapshotName));
   t.true(isRunUtilsSnapshotName('demo-base'));
   t.true(isRunUtilsSnapshotName('main-vaults-base'));
   t.true(isRunUtilsSnapshotName('itest-vaults-base'));
   t.true(isRunUtilsSnapshotName('orchestration-base'));
-  t.true(isRunUtilsSnapshotName('orchestration-ready'));
-  t.true(isRunUtilsSnapshotName('vow-offer-results'));
+  t.false(isRunUtilsSnapshotName(removedSnapshotName));
   t.false(isRunUtilsSnapshotName('not-a-snapshot'));
 });
 
@@ -32,7 +30,7 @@ test.serial(
   'loadOrCreateRunUtilsSnapshot returns a usable snapshot',
   async t => {
     const snapshot = await loadOrCreateRunUtilsSnapshot(
-      'vow-offer-results',
+      'orchestration-base',
       t.log,
     );
 
@@ -46,7 +44,7 @@ test.serial(
     }
     await fs.access(snapshot.swingStoreDir);
 
-    const loaded = await loadRunUtilsSnapshot('vow-offer-results');
+    const loaded = await loadRunUtilsSnapshot('orchestration-base');
     t.is(
       loaded.kernelBundle?.endoZipBase64Sha512,
       snapshot.kernelBundle?.endoZipBase64Sha512,

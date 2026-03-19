@@ -51,11 +51,6 @@ export const RUNUTILS_SNAPSHOT_SPECS = {
       await kit.evalProposal(writeChainInfoProposal);
     },
   },
-  'vow-offer-results': {
-    configSpecifier:
-      '@agoric/vm-config/decentral-itest-orchestration-config.json',
-    description: 'Boot snapshot for vow-offer-results tests',
-  },
 } as const;
 
 export type RunUtilsSnapshotName = keyof typeof RUNUTILS_SNAPSHOT_SPECS;

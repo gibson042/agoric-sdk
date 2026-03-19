@@ -19,7 +19,7 @@ type CliExecError = Error & { stderr?: string | Buffer };
 
 test('create-runutils-snapshot --list includes known snapshot names', t => {
   const output = runCli(['--list']);
-  t.regex(output, /^vow-offer-results$/m);
+  t.regex(output, /^orchestration-base$/m);
 });
 
 test('create-runutils-snapshot rejects unknown snapshot names', t => {

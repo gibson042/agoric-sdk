@@ -11,7 +11,7 @@ const test: TestFn<WalletFactoryTestContext> = anyTest;
 
 test.before(async t => {
   const snapshot = await loadOrCreateRunUtilsSnapshot(
-    'vow-offer-results',
+    'orchestration-base',
     t.log,
   );
   t.context = await makeWalletFactoryContext(

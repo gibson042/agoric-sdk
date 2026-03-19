@@ -55,7 +55,22 @@ Each snapshot is defined in `RUNUTILS_SNAPSHOT_SPECS` with:
 - `setup`: optional extra boot-time work that must run before the snapshot is captured
 - `cacheInputs`: optional extra source files that affect the snapshot contents but are not otherwise discoverable from `configSpecifier`
 
-`createRunUtilsSnapshot(name)` creates a fresh swingset, runs `spec.setup` if present, snapshots all vats, commits swingstore state, and writes:
+Avoid duplicate snapshot families. If two test suites use the same boot config
+and no additional setup, they should share the same snapshot name and cache key.
+
+### Snapshot lifecycle
+
+`createRunUtilsSnapshot(name)` does this:
+
+1. build the current kernel bundle
+2. compute the snapshot fingerprint
+3. boot a fresh `SwingsetTestKit`
+4. `snapshotAllVats()`
+5. commit the swing-store
+6. write the snapshot metadata and kernel bundle
+7. leave the captured swing-store on disk for later restore
+
+`createRunUtilsSnapshot(name)` creates a fresh swingset, snapshots all vats, commits swingstore state, and writes:
 
 - `kernel-bundle.json`
 - `metadata.json`
