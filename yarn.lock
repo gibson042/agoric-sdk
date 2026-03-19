@@ -1001,7 +1001,7 @@ __metadata:
   dependencies:
     "@endo/eslint-plugin": "npm:^2.4.0"
     "@google-cloud/monitoring": "npm:^4.1.0"
-    "@jessie.js/eslint-plugin": "npm:^0.4.2"
+    "@jessie.js/eslint-plugin": "npm:^0.4.3"
     "@lerna-lite/cli": "npm:^4.6.1"
     "@lerna-lite/exec": "npm:^4.6.1"
     "@lerna-lite/publish": "npm:^4.6.1"
@@ -5109,14 +5109,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jessie.js/eslint-plugin@npm:^0.4.2":
-  version: 0.4.2
-  resolution: "@jessie.js/eslint-plugin@npm:0.4.2"
+"@jessie.js/eslint-plugin@npm:^0.4.3":
+  version: 0.4.3
+  resolution: "@jessie.js/eslint-plugin@npm:0.4.3"
   dependencies:
+    "@endo/eslint-plugin": "npm:^2.4.0"
+    "@eslint/eslintrc": "npm:^3.3.1"
     requireindex: "npm:~1.1.0"
   peerDependencies:
-    eslint: ">=8.53.0"
-  checksum: 10c0/1ca3b6ed78a91c8ce014897ebe4cf9ff54f130c24010e35e9d678902c2a0ec81fb2b18679e91d52a6b9b3dc3fc3ed442fc93b3cbd4dc98a8a1617c19ac688b90
+    eslint: ^8 || ^9
+  checksum: 10c0/afd6bf1f9279ccf8581ac88315db6742ea265ed2f0c37de12a14725308d294cbd84b1e566d62a841ad41c162539cacadfcd3080fbb2c737de7880739b4b539f7
   languageName: node
   linkType: hard
 

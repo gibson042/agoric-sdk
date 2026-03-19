@@ -13,7 +13,7 @@
   "devDependencies": {
     "@endo/eslint-plugin": "^2.4.0",
     "@google-cloud/monitoring": "^4.1.0",
-    "@jessie.js/eslint-plugin": "^0.4.2",
+    "@jessie.js/eslint-plugin": "^0.4.3",
     "@lerna-lite/cli": "^4.6.1",
     "@lerna-lite/exec": "^4.6.1",
     "@lerna-lite/publish": "^4.6.1",
