@@ -1,4 +1,4 @@
-/* eslint-disable no-underscore-dangle, import/no-extraneous-dependencies */
+/* eslint-disable no-underscore-dangle */
 import { fixupConfigRules, fixupPluginRules } from '@eslint/compat';
 import typescriptEslint from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
@@ -6,7 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
 import { FlatCompat } from '@eslint/eslintrc';
-import { createRequire } from 'module';
+import { createRequire } from 'node:module';
+import nodePlugin from 'eslint-plugin-n';
 import { legacySrcToToolsFiles } from './scripts/ci/tools-scope-policy.mjs';
 
 // Workaround for https://github.com/anza-xyz/eslint-plugin-require-extensions/issues/18
@@ -20,34 +21,6 @@ const compat = new FlatCompat({
   recommendedConfig: js.configs.recommended,
   allConfig: js.configs.all,
 });
-
-const deprecatedForLoanContract = [
-  ['currency', 'brand, asset or another descriptor'],
-  ['blacklist', 'denylist'],
-  ['whitelist', 'allowlist'],
-  ['RUN', 'IST', '/RUN/'],
-];
-
-const allDeprecated = [...deprecatedForLoanContract, ['loan', 'debt']];
-
-const deprecatedTerminology = Object.fromEntries(
-  Object.entries({
-    all: allDeprecated,
-    loanContract: deprecatedForLoanContract,
-  }).map(([category, deprecated]) => [
-    category,
-    deprecated.flatMap(([bad, good, badRgx = `/${bad}/i`]) =>
-      [
-        ['Literal', 'value'],
-        ['TemplateElement', 'value.raw'],
-        ['Identifier', 'name'],
-      ].map(([selectorType, field]) => ({
-        selector: `${selectorType}[${field}=${badRgx}]`,
-        message: `Use '${good}' instead of deprecated '${bad}'`,
-      })),
-    ),
-  ]),
-);
 
 export default [
   {
@@ -101,6 +74,7 @@ export default [
     plugins: {
       '@typescript-eslint': typescriptEslint,
       'require-extensions': fixupPluginRules(requireExtensions),
+      n: nodePlugin,
     },
 
     linterOptions: {
@@ -181,6 +155,8 @@ export default [
         },
       ],
 
+      'n/prefer-node-protocol': 'error',
+
       'jsdoc/no-defaults': 'off',
       'no-use-before-define': 'off',
       'no-nested-ternary': 'off',
@@ -199,7 +175,6 @@ export default [
     rules: {
       'no-restricted-syntax': [
         'error',
-        ...deprecatedTerminology.all,
         {
           selector:
             'CallExpression[callee.object.name="Object"][callee.property.name="fromEntries"] > CallExpression.arguments[callee.object.name="Object"][callee.property.name="entries"]',
@@ -329,14 +304,6 @@ export default [
             'heapVowTools are not durable; instead use `prepareVowTools` with a durable zone',
         },
       ],
-    },
-  },
-  {
-    // Allow "loan" contracts to mention the word "loan".
-    files: ['packages/zoe/src/contracts/loan/*.js'],
-
-    rules: {
-      'no-restricted-syntax': ['error', ...deprecatedTerminology.loanContract],
     },
   },
   {

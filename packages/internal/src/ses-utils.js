@@ -1,5 +1,4 @@
 // @ts-check
-// @jessie-check
 /**
  * @file Utility functions that are dependent upon a hardened environment,
  *   either directly or indirectly (e.g. by @endo imports).
@@ -501,11 +500,11 @@ export const synchronizedTee = (sourceStream, readerCount) => {
         queue.put(rejection);
         return rejection;
       },
-      // eslint-disable-next-line no-restricted-globals
+
       [Symbol.asyncIterator]() {
         return reader;
       },
-      // eslint-disable-next-line no-restricted-globals
+
       async [Symbol.asyncDispose]() {
         await reader.return();
       },

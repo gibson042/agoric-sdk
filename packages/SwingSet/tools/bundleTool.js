@@ -1,10 +1,10 @@
 import { makeNodeBundleCache as wrappedMaker } from '@endo/bundle-source/cache.js';
 import styles from 'ansi-styles'; // less authority than 'chalk'
-import * as fsPromises from 'fs/promises';
+import * as fsPromises from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { fileURLToPath } from 'url';
-import path from 'path';
-import { setTimeout as delay } from 'timers/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { makeDirectoryLock } from '@agoric/internal/src/build-cache.js';
 
 /**
