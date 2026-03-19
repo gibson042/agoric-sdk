@@ -18,7 +18,7 @@ module.exports = {
     'plugin:jsdoc/recommended',
     'prettier',
   ],
-  plugins: ['import', 'github'],
+  plugins: ['import'],
   rules: {
     'arrow-body-style': 'off',
     'arrow-parens': 'off',
@@ -62,8 +62,6 @@ module.exports = {
         },
       },
     ],
-
-    'github/array-foreach': 'warn',
 
     // Covered faster by TS
     // https://typescript-eslint.io/troubleshooting/typed-linting/performance/#eslint-plugin-import

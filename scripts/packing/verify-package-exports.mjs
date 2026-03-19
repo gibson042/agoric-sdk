@@ -132,7 +132,6 @@ const exportTargetPatterns = exportValue => {
       return;
     }
     if (Array.isArray(value)) {
-      // eslint-disable-next-line github/array-foreach
       value.forEach(addValue);
       return;
     }

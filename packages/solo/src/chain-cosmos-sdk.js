@@ -447,7 +447,6 @@ export async function connectToChain(
 
           // Find only the latest value in the events.
           let storageValue;
-          // eslint-disable-next-line github/array-foreach
           paths.forEach((key, i) => {
             if (key === storagePath) {
               storageValue = values[i];
