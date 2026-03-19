@@ -32,25 +32,6 @@ export const RUNUTILS_SNAPSHOT_SPECS = {
       '@agoric/vm-config/decentral-itest-orchestration-config.json',
     description: 'Boot snapshot for orchestration tests',
   },
-  'orchestration-ready': {
-    configSpecifier: '@agoric/vm-config/decentral-main-vaults-config.json',
-    description: 'Boot snapshot with orchestration initialized',
-    cacheInputs: [
-      '@agoric/builders/scripts/vats/init-orchestration.js',
-      '@agoric/builders/scripts/orchestration/write-chain-info.js',
-    ],
-    setup: async (kit: SwingsetTestKit) => {
-      const initOrchestrationProposal = await kit.buildProposal(
-        '@agoric/builders/scripts/vats/init-orchestration.js',
-      );
-      await kit.evalProposal(initOrchestrationProposal);
-
-      const writeChainInfoProposal = await kit.buildProposal(
-        '@agoric/builders/scripts/orchestration/write-chain-info.js',
-      );
-      await kit.evalProposal(writeChainInfoProposal);
-    },
-  },
 } as const;
 
 export type RunUtilsSnapshotName = keyof typeof RUNUTILS_SNAPSHOT_SPECS;
@@ -67,8 +48,6 @@ type SnapshotKernelBundle = NonNullable<
 type RunUtilsSnapshotSpec = {
   configSpecifier: string;
   description: string;
-  cacheInputs?: readonly string[];
-  setup?: (kit: SwingsetTestKit) => Promise<void>;
 };
 
 const listNames = () => Object.keys(RUNUTILS_SNAPSHOT_SPECS);

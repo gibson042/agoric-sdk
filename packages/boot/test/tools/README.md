@@ -52,8 +52,7 @@ reduces duplicated cold-start work.
 Each snapshot is defined in `RUNUTILS_SNAPSHOT_SPECS` with:
 
 - `configSpecifier`: the base boot config used to create the snapshot
-- `setup`: optional extra boot-time work that must run before the snapshot is captured
-- `cacheInputs`: optional extra source files that affect the snapshot contents but are not otherwise discoverable from `configSpecifier`
+- `description`: short human-readable intent for the snapshot
 
 Avoid duplicate snapshot families. If two test suites use the same boot config
 and no additional setup, they should share the same snapshot name and cache key.
