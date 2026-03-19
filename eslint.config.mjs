@@ -21,34 +21,6 @@ const compat = new FlatCompat({
   allConfig: js.configs.all,
 });
 
-const deprecatedForLoanContract = [
-  ['currency', 'brand, asset or another descriptor'],
-  ['blacklist', 'denylist'],
-  ['whitelist', 'allowlist'],
-  ['RUN', 'IST', '/RUN/'],
-];
-
-const allDeprecated = [...deprecatedForLoanContract, ['loan', 'debt']];
-
-const deprecatedTerminology = Object.fromEntries(
-  Object.entries({
-    all: allDeprecated,
-    loanContract: deprecatedForLoanContract,
-  }).map(([category, deprecated]) => [
-    category,
-    deprecated.flatMap(([bad, good, badRgx = `/${bad}/i`]) =>
-      [
-        ['Literal', 'value'],
-        ['TemplateElement', 'value.raw'],
-        ['Identifier', 'name'],
-      ].map(([selectorType, field]) => ({
-        selector: `${selectorType}[${field}=${badRgx}]`,
-        message: `Use '${good}' instead of deprecated '${bad}'`,
-      })),
-    ),
-  ]),
-);
-
 export default [
   {
     ignores: [
@@ -199,7 +171,6 @@ export default [
     rules: {
       'no-restricted-syntax': [
         'error',
-        ...deprecatedTerminology.all,
         {
           selector:
             'CallExpression[callee.object.name="Object"][callee.property.name="fromEntries"] > CallExpression.arguments[callee.object.name="Object"][callee.property.name="entries"]',
@@ -329,14 +300,6 @@ export default [
             'heapVowTools are not durable; instead use `prepareVowTools` with a durable zone',
         },
       ],
-    },
-  },
-  {
-    // Allow "loan" contracts to mention the word "loan".
-    files: ['packages/zoe/src/contracts/loan/*.js'],
-
-    rules: {
-      'no-restricted-syntax': ['error', ...deprecatedTerminology.loanContract],
     },
   },
   {
