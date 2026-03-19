@@ -44,7 +44,8 @@ harden(makeUpgradeDisconnection);
  * @returns {reason is UpgradeDisconnection}
  */
 export const isUpgradeDisconnection = reason =>
-  reason != null && // eslint-disable-line eqeqeq
+  reason !== null &&
+  reason !== undefined &&
   isFrozen(reason) &&
   matches(reason, UpgradeDisconnectionShape);
 harden(isUpgradeDisconnection);
@@ -63,7 +64,8 @@ harden(isUpgradeDisconnection);
  * @returns {reason is Error}
  */
 export const isAbandonedError = reason =>
-  reason != null && // eslint-disable-line eqeqeq
+  reason !== null &&
+  reason !== undefined &&
   isFrozen(reason) &&
   matches(reason, M.error()) &&
   // We're not using a constant here since this special value is already
