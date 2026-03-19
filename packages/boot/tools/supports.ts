@@ -369,7 +369,7 @@ interface BootProfileTraceFile extends TraceFile {
 interface BootProfiler {
   measure: <T>(
     name: string,
-    op: () => Promise<T> | T,
+    op: () => ERef<T>,
     args?: Record<string, unknown>,
   ) => Promise<T>;
 }
