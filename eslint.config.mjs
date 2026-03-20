@@ -253,10 +253,10 @@ export default [
   },
   {
     files: [
-      'packages/**/demo/**/*.js',
-      'packages/*/test/**/*.*s',
-      'packages/*/test/**/*.test.*s',
-      'packages/wallet/api/test/**/*.js',
+      'packages/*/demo/**',
+      'packages/*/test/**',
+      'packages/wallet/*/test/**',
+      'services/*/test/**',
     ],
 
     rules: {
