@@ -1,3 +1,4 @@
+/* eslint-disable no-plusplus */
 import { EventEmitter } from 'node:events';
 import { ethers } from 'ethers';
 import type { WebSocketProvider } from 'ethers';
