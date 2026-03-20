@@ -77,13 +77,14 @@ type ProvideEVMAccountSendCallFactory = (
 ) => ProvideEVMAccountSendCall;
 
 const assertNotRouterBasedAccount = ({
+  routerFactory,
   routerAddress,
   remoteAddress,
   chainName,
 }: GMPAccountInfo) => {
   // If we somehow got asked to send a GMP message to a router-based account,
   // something went wrong
-  if (routerAddress) {
+  if (routerFactory || routerAddress) {
     throw Fail`Remote account ${remoteAddress} on ${chainName} should not be a router-enabled account`;
   }
 };

@@ -433,7 +433,7 @@ test('evmHandler deposit rejects unknown chainId', t => {
 
 type EVMDepositRemoteAccountConfig = {
   remoteAddress: Address | 'deriveDepositFactory' | 'deriveRouter';
-  routerAddress?: Address;
+  routerFactory?: Address;
 };
 
 const doEVMDeposit = test.macro(
@@ -598,7 +598,7 @@ test(
     spender: contractsMock.Arbitrum.remoteAccountRouter,
     remoteAccount: {
       remoteAddress: 'deriveRouter',
-      routerAddress: contractsMock.Arbitrum.remoteAccountRouter,
+      routerFactory: contractsMock.Arbitrum.remoteAccountFactory,
     },
   },
 );
@@ -649,7 +649,7 @@ test(
   {
     remoteAccount: {
       remoteAddress: 'deriveRouter',
-      routerAddress: contractsMock.Arbitrum.remoteAccountRouter,
+      routerFactory: contractsMock.Arbitrum.remoteAccountFactory,
     },
   },
 );
@@ -660,7 +660,7 @@ test(
   {
     remoteAccount: {
       remoteAddress: '0x9999999999999999999999999999999999999999',
-      routerAddress: contractsMock.Arbitrum.remoteAccountRouter,
+      routerFactory: contractsMock.Arbitrum.remoteAccountFactory,
     },
     expectFail: true,
   },
@@ -683,7 +683,7 @@ test(
   {
     remoteAccount: {
       remoteAddress: 'deriveRouter',
-      routerAddress: contractsMock.Arbitrum.remoteAccountRouter,
+      routerFactory: contractsMock.Arbitrum.remoteAccountFactory,
     },
     spender: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     expectFail: {
@@ -707,7 +707,7 @@ test(
   {
     otherRemoteAccount: {
       remoteAddress: 'deriveRouter',
-      routerAddress: contractsMock.Base.remoteAccountRouter,
+      routerFactory: contractsMock.Base.remoteAccountFactory,
     },
     spender: 'deriveDepositFactory',
     expectFail: true,

@@ -75,7 +75,6 @@ export const sendGMPRouterInstruction = async <T extends SupportedOperations>(
     trace?: ReturnType<typeof makeTracer>;
   },
   payload: RouterOperationPayload<T> & {
-    ignoreNonCurrentRouter?: boolean;
     sendFromContract?: boolean;
     debuggingDetails?: Record<string, PureData>;
   },
@@ -94,36 +93,27 @@ export const sendGMPRouterInstruction = async <T extends SupportedOperations>(
   } = ctx;
   const {
     chainName,
-    routerAddress,
+    routerFactory,
     remoteAddress,
     chainId: remoteChainId,
-    transferringFromRouter,
   } = remoteAccount;
   const axelarId = axelarIds[chainName];
 
-  const {
-    ignoreNonCurrentRouter = false,
-    sendFromContract = false,
-    debuggingDetails = {},
-  } = payload;
-
-  if (!routerAddress) {
-    throw Fail`Remote account ${remoteAddress} on ${chainName} is not a router-enabled account`;
-  }
+  const { sendFromContract = false, debuggingDetails = {} } = payload;
 
   if (
-    !ignoreNonCurrentRouter &&
-    !sameEvmAddress(routerAddress, addresses.remoteAccountRouter)
+    !routerFactory ||
+    !sameEvmAddress(routerFactory, addresses.remoteAccountFactory)
   ) {
-    Fail`Remote account ${remoteAddress} on ${chainName} is not using the current router. Must transfer first.`;
+    Fail`Remote account ${remoteAddress} on ${chainName} was not deployed by a supported factory for router-based accounts. Expected factory at ${addresses.remoteAccountFactory}, got ${routerFactory}`;
   }
 
-  !transferringFromRouter ||
-    Fail`Remote account ${remoteAddress} on ${chainName} is currently transferring`;
+  assert(addresses.remoteAccountRouter && addresses.remoteAccountFactory);
 
   const contractAccount = await feeAccount;
 
-  const destinationAddress = `${remoteChainId}:${routerAddress}` as const;
+  const destinationAddress =
+    `${remoteChainId}:${addresses.remoteAccountRouter}` as const;
 
   const sourceAccount = sendFromContract ? contractAccount : lca;
   const sourceAddress = coerceAccountId(sourceAccount.getAddress());
@@ -198,7 +188,7 @@ export const sendGMPRouterInstruction = async <T extends SupportedOperations>(
     const { AXELAR_GMP, AXELAR_GAS } = gmpAddresses;
     const memo: AxelarGmpOutgoingMemo = {
       destination_chain: axelarId,
-      destination_address: routerAddress,
+      destination_address: addresses.remoteAccountRouter,
       payload: Array.from(encodedPayload),
       type: AxelarGMPMessageType.ContractCall,
       fee: { amount: String(gmpFee.value), recipient: AXELAR_GAS },
@@ -261,7 +251,7 @@ const predictAccountInfo = (
     chainName: ctx.chainName,
     chainId: `${ctx.chainInfo.namespace}:${ctx.chainInfo.reference}`,
     remoteAddress,
-    routerAddress,
+    routerFactory: factoryAddress,
   } satisfies GMPAccountInfo;
   ctx.trace?.(
     'CREATE2',
@@ -318,7 +308,7 @@ export const makeProvideEVMAccount =
       // we are not currently able to recover. Too many code paths assume the
       // account details are immutable.
       // Our caller should never have gotten us here in the first place.
-      assert(evmAccount.routerAddress);
+      assert(evmAccount.routerFactory);
 
       // Bail out early if another caller created the account, and this is not a deposit.
       if (!manager && !permit2Payload) {

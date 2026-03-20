@@ -90,10 +90,10 @@ export type GMPAccountInfo = {
   err?: string;
   chainId: CaipChainId;
   remoteAddress: EVMAddress;
-  // routerAddress only present if useRouter set on portfolio
-  routerAddress?: EVMAddress;
-  // transferringFromRouter only present while router ownership transfer in progress
-  transferringFromRouter?: EVMAddress;
+  // unsupported. routerAddress only present on beta router-based accounts
+  routerAddress?: undefined;
+  /** the address of the factory that deployed the router-based remote account */
+  routerFactory?: EVMAddress;
 };
 type AgoricAccountInfo = {
   namespace: 'cosmos';
@@ -217,7 +217,7 @@ const accountStateByChain = (
     {};
   for (const [n, info] of accounts.entries()) {
     let accountDetails:
-      | { chainId: CaipChainId; address: string; router?: EVMAddress }
+      | { chainId: CaipChainId; address: string; routerFactory?: EVMAddress }
       | undefined;
 
     switch (info.namespace) {
@@ -242,11 +242,11 @@ const accountStateByChain = (
         break;
       }
       case 'eip155': {
-        const { chainId, remoteAddress, routerAddress } = info;
+        const { chainId, remoteAddress, routerFactory } = info;
         accountDetails = {
           chainId,
           address: remoteAddress,
-          ...(routerAddress ? { router: routerAddress } : {}),
+          ...(routerFactory ? { routerFactory } : {}),
         };
         break;
       }
@@ -258,7 +258,6 @@ const accountStateByChain = (
     const hasError = !!info.err;
 
     if (accountDetails) {
-      // XXX: handle transferring state when we implement support for it
       byChain[n] = {
         state: hasError ? 'failed' : isPending ? 'provisioning' : 'active',
         ...(accountDetails || {}),
@@ -475,7 +474,7 @@ export const preparePortfolioKit = (
           if (accounts.has(chainName)) {
             // There is already a remote account, must keep the same interaction kind
             const info = accounts.get(chainName) as GMPAccountInfo;
-            return !!info.routerAddress;
+            return !!info.routerFactory;
           }
 
           const addresses = contracts[chainName];
@@ -487,7 +486,7 @@ export const preparePortfolioKit = (
             addresses.remoteAccountRouter.length > 2;
           const hasRoutedAccount = [...accounts.entries()].some(
             ([chain, info]) =>
-              chain in AxelarChain && (info as GMPAccountInfo).routerAddress,
+              chain in AxelarChain && (info as GMPAccountInfo).routerFactory,
           );
           if (chainSupportsRouter && hasRoutedAccount) {
             return true;
@@ -862,14 +861,14 @@ export const preparePortfolioKit = (
           // That implies that if the representative is not the remote account,
           // the deposit factory can only be a valid representative if the
           // remote account is not router based, and vice-versa.
-          // A non current router can never be used as representative, even if
-          // the remote account hasn't been transferred to the new router yet.
+          // While any enabled router could be used as representative, we
+          // currently require the current router to be used.
           // Allowing the remote account itself as representative supports
           // legacy remote accounts being used for deposits, and in the future
           // lets us remove the deposit factory as a supported representative.
           // We also support remote accounts as representative when the remote
           // account does not yet exist and will be created, either by the
-          // remote account factory through the router, or by the deposit factory.
+          // remote account factory through the router, or by the legacy factory.
           type RepresentativeConfig = {
             name: string;
             address: EVMAddress;
@@ -925,9 +924,11 @@ export const preparePortfolioKit = (
             remoteAccountAddress = gmpInfo.remoteAddress;
 
             // If the account exists, we must use its matching representative
-            representativeConfig = gmpInfo.routerAddress
+            representativeConfig = gmpInfo.routerFactory
               ? routerConfig
-              : depositFactoryConfig;
+              : gmpInfo.routerAddress
+                ? undefined
+                : depositFactoryConfig;
 
             // If the deposit into the existing remote account is through the representative,
             // the remote account address must match what the representative's factory would create.

@@ -210,18 +210,15 @@ export type PortfolioGenericRemoteAccountState =
 export type PortfolioEVMRemoteAccountState = {
   chainId: `eip155:${number | bigint | string}`;
   address: EVMAddress;
-} & (
-  | {
-      state: PortfolioRemoteAccountCommonStates;
-      // router is not present for legacy accounts
-      router?: EVMAddress;
-    }
-  | {
-      state: 'transferring';
-      router: EVMAddress;
-      fromRouter: EVMAddress;
-    }
-);
+} & {
+  state: PortfolioRemoteAccountCommonStates;
+  /**
+   * The factory that deployed the router-based remote account and maintains a map of authorized routers.
+   *
+   * Absent for legacy accounts.
+   */
+  routerFactory?: EVMAddress;
+};
 
 export type PortfolioCosmosRemoteAccountState = {
   chainId: `cosmos:${string}`;
