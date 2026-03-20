@@ -5,7 +5,7 @@
 import 'ses';
 import '@endo/eventual-send/shim.js';
 // @ts-expect-error Cannot find module
-import 'data:text/javascript,try { lockdown(); } catch (_err) {}';
+import 'data:text/javascript,try { lockdown(); } catch {}';
 
 import * as proc from 'node:child_process';
 import * as os from 'node:os';

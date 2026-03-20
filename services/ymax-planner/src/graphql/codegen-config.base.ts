@@ -26,7 +26,7 @@ for (
     const fileStats = fs.statSync(dotEnvPath);
     if (fileStats && !fileStats.isDirectory()) dotEnvPaths.push(dotEnvPath);
     // eslint-disable-next-line no-empty
-  } catch (_err) {}
+  } catch {}
   const packageJsonPath = pathlib.join(dirname, 'package.json');
   if (fs.statSync(packageJsonPath, { throwIfNoEntry: false })) break;
 }

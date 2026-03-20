@@ -42,7 +42,7 @@ const resolveModuleSpecifier = (moduleSpecifier, paths) => {
     // Use Node's CJS resolver semantics for parity with agoric script loading.
     // This can differ from strict ESM resolution behavior.
     return require.resolve(moduleSpecifier, { paths });
-  } catch (_err) {
+  } catch {
     if (path.isAbsolute(moduleSpecifier)) {
       return path.normalize(moduleSpecifier);
     }
