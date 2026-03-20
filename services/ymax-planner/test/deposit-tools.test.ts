@@ -26,6 +26,7 @@ import type { Brand, NatAmount } from '@agoric/ertp/src/types.js';
 import { objectMap } from '@agoric/internal';
 import { arrayIsLike } from '@agoric/internal/tools/ava-assertions.js';
 import { Far } from '@endo/pass-style';
+import PROD_NETWORK from '@aglocal/portfolio-contract/tools/network/prod-network.ts';
 import { CosmosRestClient, USDN } from '../src/cosmos-rest-client.ts';
 import {
   getCurrentBalances,
@@ -44,7 +45,6 @@ import {
 } from './mocks.ts';
 import type { Sdk as SpectrumBlockchainSdk } from '../src/graphql/api-spectrum-blockchain/__generated/sdk.ts';
 import type { Sdk as SpectrumPoolsSdk } from '../src/graphql/api-spectrum-pools/__generated/sdk.ts';
-import PROD_NETWORK from '@aglocal/portfolio-contract/tools/network/prod-network.ts';
 
 const depositBrand = Far('mock brand') as Brand<'nat'>;
 const makeDeposit = value => AmountMath.make(depositBrand, value);
@@ -73,7 +73,7 @@ const makeMovementDesc = (src: string, dest: string, value: bigint) => {
 const handleDeposit = async (
   portfolioKey: `${string}.portfolios.portfolio${number}`,
   amount: NatAmount,
-  feeBrand: Brand<'nat'>,
+  feeTokenBrand: Brand<'nat'>,
   powers: {
     readPublished: VstorageKit<PortfolioPublishedPathTypes>['readPublished'];
     cosmosRest?: CosmosRestClient;
@@ -110,7 +110,7 @@ const handleDeposit = async (
     currentBalances,
     targetAllocation,
     network,
-    feeBrand,
+    feeBrand: feeTokenBrand,
     gasEstimator: powers.gasEstimator,
   });
   return { policyVersion, rebalanceCount, plan };

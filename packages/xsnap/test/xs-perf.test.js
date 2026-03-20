@@ -249,7 +249,7 @@ test('metering switch - start compartment only', async t => {
     resetMeter(0, 0);
     try {
       (new Compartment()).evalate('resetMeter(0, 0)');
-    } catch (_err) {
+    } catch {
       send('no meteringSwitch in Compartment');
     }
   `);

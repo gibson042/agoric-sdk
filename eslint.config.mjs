@@ -1,4 +1,4 @@
-/* eslint-disable no-underscore-dangle */
+/* eslint-disable -- going away soon */
 import { fixupConfigRules, fixupPluginRules } from '@eslint/compat';
 import typescriptEslint from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
@@ -25,6 +25,16 @@ const compat = new FlatCompat({
 export default [
   {
     ignores: [
+      '**/*.d.ts',
+      '**/*.test-d.ts',
+      // Has its own eslint config
+      'multichain-testing/',
+      // XXX outside the project service
+      'packages/eslint-config',
+      'packages/eslint-plugin',
+      'services/ymax-planner/esbuild.config.mjs',
+      '.github',
+      '.yarn',
       '**/__generated',
       '**/codegen',
       '**/coverage/',
@@ -34,10 +44,10 @@ export default [
       '**/build/',
       '**/bundles/',
       '**/bundle-*',
+      '**/demo/',
       'examples/',
       'packages/orchestration/src/vendor/',
       'packages/orchestration/src/stubs/',
-      'test262/',
       '**/*.html',
       '**/ava*.config.js',
       '**/.ava*.config.js',
@@ -47,11 +57,15 @@ export default [
       'packages/client-utils/scripts/',
       'packages/cosmic-proto/proto/',
       'packages/cosmic-proto/scripts/',
+      'packages/xsnap/moddable/',
+      'packages/xsnap/xsnap-native/',
       // Cosmic-swingset specific ignores
       'packages/cosmic-swingset/t[0-9]/',
       'packages/cosmic-swingset/t[0-9].*/',
       // a3p-integration specific ignores
       'a3p-integration/agoric-sdk/',
+      'a3p-integration/proposals/*/local-packages/',
+      'golang/',
     ],
   },
   {
@@ -238,10 +252,11 @@ export default [
   },
   {
     files: [
-      'packages/**/demo/**/*.js',
-      'packages/*/test/**/*.*s',
-      'packages/*/test/**/*.test.*s',
-      'packages/wallet/api/test/**/*.js',
+      'packages/*/demo/**',
+      '**/scripts/**',
+      'packages/*/test/**',
+      'packages/wallet/*/test/**',
+      'services/*/test/**',
     ],
 
     rules: {
@@ -322,19 +337,6 @@ export default [
           varsIgnorePattern: '^_',
         },
       ],
-    },
-  },
-  {
-    files: ['**/*.d.ts'],
-
-    rules: {
-      'no-redeclare': 'off',
-    },
-  },
-  {
-    files: ['**/*.test-d.ts'],
-    rules: {
-      '@typescript-eslint/no-unused-vars': 'off',
     },
   },
   ...compat

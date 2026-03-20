@@ -4,7 +4,7 @@ import path from 'node:path';
 import { legacySrcToToolsImports } from './tools-scope-policy.mjs';
 
 const IMPORT_SPECIFIER_RE =
-  /^\s*(?:import\s+[^'\"]*from\s+|export\s+[^'\"]*from\s+|import\s*\(|import\s*)\s*['\"]([^'\"]+)['\"]/;
+  /^\s*(?:import\s+[^'"]*from\s+|export\s+[^'"]*from\s+|import\s*\(|import\s*)\s*['"]([^'"]+)['"]/;
 
 const ALLOWLIST_SRC_TOOLS = new Set(
   legacySrcToToolsImports.map(({ file, specifier }) => `${file}|${specifier}`),

@@ -6,10 +6,6 @@
 
 export const legacySrcToToolsImports = [
   {
-    file: 'packages/SwingSet/src/controller/initializeSwingset.js',
-    specifier: '../../tools/bundleTool.js',
-  },
-  {
     file: 'packages/agoric-cli/src/commands/perf.js',
     specifier: '@agoric/vats/tools/board-utils.js',
   },
@@ -42,10 +38,6 @@ export const legacySrcToToolsImports = [
     specifier: '@agoric/vats/tools/ibc-utils.js',
   },
   {
-    file: 'packages/portfolio-contract/src/pos-gmp.flows.ts',
-    specifier: '@agoric/orchestration/tools/make-test-address.js',
-  },
-  {
     file: 'packages/smart-wallet/src/types.ts',
     specifier: '@agoric/vats/tools/board-utils.js',
   },
@@ -56,10 +48,6 @@ export const legacySrcToToolsImports = [
   {
     file: 'packages/vats/src/ibc.js',
     specifier: '../tools/ibc-utils.js',
-  },
-  {
-    file: 'packages/zoe/src/contractSupport/recorder.js',
-    specifier: '@agoric/notifier/tools/testSupports.js',
   },
 ];
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 /* eslint-disable no-plusplus */
-/* eslint-disable @jessie.js/safe-await-separator */
 /**
  * @file Verify package export specifiers resolve for consumers.
  *
