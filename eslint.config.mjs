@@ -52,7 +52,6 @@ export default [
       '**/ava*.config.js',
       '**/.ava*.config.js',
       '**/tsup.config.ts',
-      '**/scripts/**',
       '**/vendor/**',
       'yarn.config.cjs',
       'packages/client-utils/scripts/',
@@ -254,6 +253,7 @@ export default [
   {
     files: [
       'packages/*/demo/**',
+      '**/scripts/**',
       'packages/*/test/**',
       'packages/wallet/*/test/**',
       'services/*/test/**',

@@ -133,7 +133,7 @@ async function updateDataFile(filePath, windowKey) {
  * Updates files in a directory
  * @param {string} dir - Directory to update
  * @param {string} fileExtension - File extension to process
- * @param {Function} updateFunction - Function to update file content
+ * @param {(content: string) => string} updateFunction - Function to update file content
  */
 async function updateFiles(dir, fileExtension, updateFunction) {
   const files = await fsp.readdir(dir);

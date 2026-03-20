@@ -1,4 +1,3 @@
-/* eslint-disable @jessie.js/safe-await-separator */
 /* eslint-disable no-plusplus */
 /* eslint-disable default-case */
 import test from 'ava';

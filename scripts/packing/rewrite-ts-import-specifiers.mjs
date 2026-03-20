@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* eslint-disable @jessie.js/safe-await-separator */
 /**
  * @file Rewrite ".ts" import specifiers to ".js" for npm publish artifacts.
  *
