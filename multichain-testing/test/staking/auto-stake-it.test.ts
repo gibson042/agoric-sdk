@@ -131,7 +131,7 @@ const autoStakeItScenario = test.macro({
     // 7. verify the COA has active delegations
     const { delegation_responses } = await retryUntilCondition(
       () => remoteQueryClient.queryDelegations(icaAddress),
-      ({ delegation_responses }) => !!delegation_responses.length,
+      result => !!result.delegation_responses.length,
       `auto-stake-it delegations visible on ${chainName}`,
       AUTO_STAKE_IT_DELEGATIONS_TIMEOUT,
     );

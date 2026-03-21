@@ -104,7 +104,7 @@ export const makeAgd = ({ execFileSync }) => {
     const outJson = toCLIOptions({ output: 'json' });
 
     /** @type {Record<string, any> | undefined} */
-    let version;
+    let versionMemo;
 
     /** @type {((ev: EventQuery | EventQuery[]) => string[]) | undefined} */
     let buildEventQueryArgs;
@@ -112,8 +112,8 @@ export const makeAgd = ({ execFileSync }) => {
     const ro = freeze({
       status: async () => JSON.parse(exec([...nodeArgs, 'status'])),
       version: async () => {
-        if (version) {
-          return version;
+        if (versionMemo) {
+          return versionMemo;
         }
 
         // This hack (2>&1) is because some appds write version to stderr!
@@ -136,8 +136,8 @@ export const makeAgd = ({ execFileSync }) => {
 
         try {
           assert(lastLine, 'no last line');
-          version = JSON.parse(lastLine);
-          return version;
+          versionMemo = JSON.parse(lastLine);
+          return versionMemo;
         } catch (e) {
           console.error(chainName, 'version failed:', e);
           console.info('output:', out);

@@ -187,7 +187,7 @@ const makeTestContext = async (t: ExecutionContext) => {
 
     await common.retryUntilCondition(
       () => queryClient.queryBalance(wallets.lp, 'ufastlp'),
-      ({ balance }) => isGTE(toAmt(FastLP, balance), want.PoolShare),
+      result => isGTE(toAmt(FastLP, result.balance), want.PoolShare),
       'lp has pool shares',
       { log: trace },
     );
@@ -618,7 +618,7 @@ test.serial('distribute FastUSDC contract fees', async t => {
 
   const { balance } = await io.retryUntilCondition(
     () => queryClient.queryBalance(opts.destinationAddress, io.usdcDenom),
-    ({ balance }) => !!balance && BigInt(balance.amount) > 0n,
+    result => !!result.balance && BigInt(result.balance.amount) > 0n,
     `fees received at ${opts.destinationAddress}`,
   );
   t.log('fees received', balance);
@@ -815,7 +815,7 @@ test.serial('sendFromSettlementAccount', async t => {
 
   const { balance } = await io.retryUntilCondition(
     () => queryClient.queryBalance(opts.destinationAddress, io.usdcDenom),
-    ({ balance }) => BigInt(balance?.amount || 0n) > prev,
+    result => BigInt(result.balance?.amount || 0n) > prev,
     `funds received at ${opts.destinationAddress}`,
   );
 

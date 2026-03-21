@@ -24,7 +24,7 @@ import {
 } from '@aglocal/portfolio-contract/src/type-guards.ts';
 import { mustMatch } from '@agoric/internal';
 
-const { fromEntries, keys, values } = Object;
+const { fromEntries } = Object;
 
 // cf. ymax-tool
 const trader1ag = 'agoric1yupasge4528pgkszg9v328x4faxtkldsnygwjl';
@@ -114,9 +114,9 @@ test('poc-asset', async t => {
 
   const id = it => it.getBoardId();
   const issuer = fromEntries(await vsc.readPublished('agoricNames.issuer'));
-  t.log('issuer names:', keys(issuer).join(','));
+  t.log('issuer names:', Object.keys(issuer).join(','));
   const brand = fromEntries(await vsc.readPublished('agoricNames.brand'));
-  t.log('brand names:', keys(brand).join(','));
+  t.log('brand names:', Object.keys(brand).join(','));
   const asset = fromEntries(await vsc.readPublished('agoricNames.vbankAsset'));
   const { upoc26 } = asset;
   t.truthy(asset.upoc26);
@@ -161,7 +161,7 @@ test('target-allocation-deployed', async t => {
   const cur = await wk.getCurrentWalletRecord(trader1ag);
   const { offerToPublicSubscriberPaths } = cur;
   const byOfferId = fromEntries(offerToPublicSubscriberPaths);
-  const portfolioKeys = values(byOfferId)
+  const portfolioKeys = Object.values(byOfferId)
     .filter(sub => 'portfolio' in sub)
     .map(sub => sub.portfolio);
 
@@ -256,7 +256,7 @@ test('portfolio-opened', async t => {
   const { offerToPublicSubscriberPaths } = cur;
   const byOfferId = fromEntries(offerToPublicSubscriberPaths);
   //   t.log(byOfferId);
-  const portfolioKeys = values(byOfferId)
+  const portfolioKeys = Object.values(byOfferId)
     .filter(sub => 'portfolio' in sub)
     .map(sub => sub.portfolio);
   t.log('portfolios', portfolioKeys);

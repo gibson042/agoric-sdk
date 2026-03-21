@@ -34,7 +34,7 @@ const walletScenario = test.macro({
     // see https://github.com/cosmology-tech/starship/issues/417
     const { balances: updatedBalances } = await retryUntilCondition(
       () => queryClient.queryBalances(addr),
-      ({ balances }) => !!balances.length,
+      result => !!result.balances.length,
       `${chainName} balance available from faucet`,
     );
 

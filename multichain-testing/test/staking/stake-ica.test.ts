@@ -112,7 +112,7 @@ const stakeScenario = test.macro(async (t, scenario: StakeIcaScenario) => {
 
   const { balances } = await retryUntilCondition(
     () => queryClient.queryBalances(address),
-    ({ balances }) => !!balances.length,
+    result => !!result.balances.length,
     `${scenario.chain} faucet funds available`,
   );
   t.log('Updated balances:', balances);
@@ -163,7 +163,7 @@ const stakeScenario = test.macro(async (t, scenario: StakeIcaScenario) => {
   // query remote chain to verify delegations
   const { delegation_responses } = await retryUntilCondition(
     () => queryClient.queryDelegations(address),
-    ({ delegation_responses }) => !!delegation_responses.length,
+    result => !!result.delegation_responses.length,
     `delegations visible on ${scenario.chain}`,
   );
   t.log('delegation balance', delegation_responses[0]?.balance);
@@ -176,9 +176,7 @@ const stakeScenario = test.macro(async (t, scenario: StakeIcaScenario) => {
   t.log('querying available rewards');
   const { total } = await retryUntilCondition(
     () => queryClient.queryRewards(address),
-    ({ total }) => {
-      return Number(total?.[0]?.amount) > 0;
-    },
+    result => Number(result.total?.[0]?.amount) > 0,
     `rewards available on ${scenario.chain}`,
     STAKING_REWARDS_TIMEOUT,
   );
@@ -199,8 +197,9 @@ const stakeScenario = test.macro(async (t, scenario: StakeIcaScenario) => {
 
   const { balances: rewards } = await retryUntilCondition(
     () => queryClient.queryBalances(address),
-    ({ balances }) =>
-      Number(balances?.[0]?.amount) >= Math.floor(Number(total?.[0]?.amount)),
+    result =>
+      Number(result.balances?.[0]?.amount) >=
+      Math.floor(Number(total?.[0]?.amount)),
     'claimed rewards available',
   );
   t.log('Balance after claiming rewards:', rewards);
@@ -231,7 +230,7 @@ const stakeScenario = test.macro(async (t, scenario: StakeIcaScenario) => {
 
   const { unbonding_responses } = await retryUntilCondition(
     () => queryClient.queryUnbonding(address),
-    ({ unbonding_responses }) => !!unbonding_responses.length,
+    result => !!result.unbonding_responses.length,
     `unbonding_responses visible on ${scenario.chain}`,
   );
   t.log('unbonding_responses:', unbonding_responses[0].entries);
@@ -251,10 +250,10 @@ const stakeScenario = test.macro(async (t, scenario: StakeIcaScenario) => {
   await sleep(120000);
   const { balances: rewardsWithUndelegations } = await retryUntilCondition(
     () => queryClient.queryBalances(address),
-    ({ balances }) => {
+    result => {
       const expectedBalance =
         Number(currentBalances[0].amount) + Number(TOKENS_TO_UNDELEGATE);
-      return Number(balances?.[0]?.amount) >= expectedBalance;
+      return Number(result.balances?.[0]?.amount) >= expectedBalance;
     },
     'claimed rewards available',
   );

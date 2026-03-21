@@ -78,7 +78,7 @@ const fundRemote = async (
   );
   const { balances } = await retryUntilCondition(
     () => queryClient.queryBalances(acctAddr),
-    ({ balances }) => !!balances.find(x => x.denom.startsWith('ibc/')),
+    result => !!result.balances.find(x => x.denom.startsWith('ibc/')),
     `${acctAddr} received bld from agoric`,
   );
 

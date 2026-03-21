@@ -22,8 +22,8 @@ export const makeDeployBuilder = (
     if (builderOpts) {
       args.push(...toCLIOptions(builderOpts));
     }
-    const npx = (file: string, args: string[]) =>
-      execa('npx', ['--no-install', file, ...args]);
+    const npx = (file: string, npxArgs: string[]) =>
+      execa('npx', ['--no-install', file, ...npxArgs]);
     const { stdout } = await npx('agoric', args);
     const match = stdout.match(/ (?<name>[-\w]+)-permit.json/);
     if (!(match && match.groups)) {

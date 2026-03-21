@@ -117,12 +117,12 @@ const main = async () => {
     }
   };
 
-  const provisionWallet = async (mnemonic: string) => {
+  const provisionWallet = async (walletMnemonic: string) => {
     // provision-one must be called by the owner, so we need to add the key to the test keyring
     const keyname = 'temp';
     const { [keyname]: address } = await setupTestKeys(
       [keyname],
-      [mnemonic],
+      [walletMnemonic],
     );
     try {
       await provisionSmartWallet(address, {

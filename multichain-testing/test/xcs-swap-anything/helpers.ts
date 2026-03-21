@@ -194,8 +194,7 @@ export const makeOsmosisSwapTools = async t => {
 
     const getDenomAmount = balances => {
       const balance = balances.find(coin => coin.denom === `ibc/${denom}`);
-      const amount = balance ? Number(balance.amount) : 0;
-      return amount;
+      return balance ? Number(balance.amount) : 0;
     };
 
     await retryUntilCondition(
@@ -266,7 +265,6 @@ export const makeOsmosisSwapTools = async t => {
   };
 
   const downloadXcsContracts = async (
-    xcsContracts: Contracts,
     branch: string = osmosisBranch,
     scriptPath: string = scriptLocalPath,
     artifactsPath: string = xcsArtifactsPath,
@@ -762,7 +760,7 @@ export const makeOsmosisSwapTools = async t => {
     await null;
     if (!(await areContractsInstantiated()) || forceInstall) {
       console.log(`XCS contracts being downloaded ...`);
-      await downloadXcsContracts(xcsContracts);
+      await downloadXcsContracts();
 
       console.log(`XCS contracts being instantiated ...`);
       for (const contract in xcsContracts) {
@@ -917,10 +915,10 @@ export const makeWaitUntilIbcTransfer =
       ({ currentBalances, targetDenom }) => {
         // undefined if not received yet
         const targetBalanceBefore = balancesBefore.find(
-          ({ denom }) => denom === targetDenom,
+          entry => entry.denom === targetDenom,
         );
         const targetBalanceNow = currentBalances.find(
-          ({ denom }) => denom === targetDenom,
+          entry => entry.denom === targetDenom,
         );
         console.log('Balance change: ', {
           targetBalanceBefore,
