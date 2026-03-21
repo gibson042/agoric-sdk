@@ -1,4 +1,5 @@
 // @ts-check
+/* eslint-disable jsdoc/check-param-names */
 /* global harden */
 import {
   LOCAL_CONFIG,
@@ -594,7 +595,6 @@ export const makeE2ETools = async (
    *   title?: string;
    *   description?: string;
    *   config?: unknown;
-   * } & {
    *   behavior?: Function;
    * }} info
    */

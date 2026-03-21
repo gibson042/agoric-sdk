@@ -7,7 +7,8 @@ import { toCLIOptions } from '@agoric/internal/src/cli-utils.js';
  * @import {execFileSync} from 'child_process';
  */
 
-/** Add commentMore actions
+/**
+ * Add commentMore actions
  * @typedef {{ event: string, condition?: '=', value: string }} EventQuery
  */
 
@@ -358,7 +359,10 @@ export const makeAgd = ({ execFileSync }) => {
 
 /** @typedef {ReturnType<typeof makeAgd>} Agd */
 
-/** @param {{ execFileSync: typeof execFileSync, log: typeof console.log }} powers */
+/**
+ * @param {{ execFileSync: typeof execFileSync, log: typeof console.log }} powers
+ * @param {{ podName?: string, containerName?: string, destDir?: string }} options
+ */
 export const makeCopyFiles = (
   { execFileSync, log },
   {

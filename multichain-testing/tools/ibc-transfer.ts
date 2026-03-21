@@ -47,8 +47,9 @@ export const DEFAULT_TIMEOUT_NS =
 
 /**
  * @param {number} [ms] current time in ms (e.g. Date.now())
- * @param {bigint} [minutes=5n] number of minutes in the future
- * @returns {bigint} nanosecond timestamp absolute since Unix epoch */
+ * @param {bigint} [minutes] number of minutes in the future
+ * @returns {bigint} nanosecond timestamp absolute since Unix epoch
+ */
 export const getTimeout = (ms: number = 0, minutes = 5n) => {
   // UNTIL #9200. timestamps are getting clobbered somewhere along the way
   // and we are observing failed transfers with timeouts years in the past.
