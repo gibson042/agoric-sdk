@@ -35,6 +35,11 @@ const LP_DEPOSIT_AMOUNT = 8_000n * 10n ** 6n;
 
 type QueryClient = ReturnType<typeof makeQueryClient>;
 
+const toAmt = (
+  brand: Brand<'nat'>,
+  balance: QueryBalanceResponseSDKType['balance'],
+) => make(brand, BigInt(balance?.amount || 0));
+
 const fuAssetInfo = (assetInfo: string): string => {
   const denomPairs: [Denom, DenomDetail][] = JSON.parse(assetInfo);
   const matchingPair = denomPairs.find(
@@ -301,11 +306,6 @@ test.after(async t => {
   const { deleteTestKeys } = t.context;
   deleteTestKeys(accounts);
 });
-
-const toAmt = (
-  brand: Brand<'nat'>,
-  balance: QueryBalanceResponseSDKType['balance'],
-) => make(brand, BigInt(balance?.amount || 0));
 
 const advanceAndSettleScenario = test.macro({
   title: (_, mintAmt: bigint, eudChain: string) =>

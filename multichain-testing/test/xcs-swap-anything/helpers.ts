@@ -187,6 +187,7 @@ export const makeOsmosisSwapTools = async t => {
     }
     t.is(txRes.code, 0, `Transaction succeeded`);
 
+    // eslint-disable-next-line no-use-before-define
     const denom = await getDenomHash(
       destinationChain,
       issuingChain,
@@ -383,6 +384,7 @@ export const makeOsmosisSwapTools = async t => {
   const areContractsInstantiated = async () => {
     await null;
     try {
+      // eslint-disable-next-line no-use-before-define
       await queryContractsInfo();
       return true;
     } catch {
@@ -391,6 +393,7 @@ export const makeOsmosisSwapTools = async t => {
   };
 
   const updateLocalXcsContracts = async () => {
+    // eslint-disable-next-line no-use-before-define
     const contractInfo = await queryContractsInfo();
 
     const sanitizedContracts = JSON.parse(
@@ -485,6 +488,7 @@ export const makeOsmosisSwapTools = async t => {
     ]);
 
     await retryUntilCondition(
+      // eslint-disable-next-line no-use-before-define
       () => hasPacketForwarding(chain),
       (result: boolean) => result,
       `PFM not enabled for ${chain}`,
@@ -499,6 +503,7 @@ export const makeOsmosisSwapTools = async t => {
   const enablePfmInBatch = async (chains: SwapParty[]) => {
     for await (const { chain, denom } of chains) {
       console.log('Proposing PFM for', chain);
+      // eslint-disable-next-line no-use-before-define
       const chainHashOnOsmosis = await getDenomHash('osmosis', chain, denom);
       await setupPfmEnabled({
         chain,
@@ -512,6 +517,7 @@ export const makeOsmosisSwapTools = async t => {
     await null;
     try {
       for (const channel of channelList) {
+        // eslint-disable-next-line no-use-before-define
         await getXcsState(channel);
         console.log(
           `Xcs State verified for ${channel.primary} ${channel.counterParty}`,
@@ -537,7 +543,9 @@ export const makeOsmosisSwapTools = async t => {
       gas: '1000000',
     };
 
+    // eslint-disable-next-line no-use-before-define
     const inDenom = await getFinalDenom('osmosis', chainA);
+    // eslint-disable-next-line no-use-before-define
     const outDenom = await getFinalDenom('osmosis', chainB);
 
     const message = MsgCreateBalancerPool.fromPartial({

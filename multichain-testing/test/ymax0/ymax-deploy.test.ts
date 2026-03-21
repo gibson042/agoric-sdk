@@ -33,7 +33,10 @@ const agoricRest = 'http://localhost:1317';
 
 const test = anyTest as TestFn<Awaited<ReturnType<typeof makeTestContext>>>;
 
-test.before(async t => (t.context = await makeTestContext(t)));
+test.before(async t => {
+  // eslint-disable-next-line no-use-before-define
+  t.context = await makeTestContext(t);
+});
 
 const makeTestContext = async _t => {
   const vstorageClient = makeVstorageKit({ fetch }, LOCAL_CONFIG);
