@@ -276,6 +276,7 @@ export const makeOsmosisSwapTools = async t => {
       wasmFiles.push(`${label}.wasm`);
     }
 
+    await null;
     try {
       await $`${scriptPath} osmosis-labs osmosis ${branch} tests/ibc-hooks/bytecode ${artifactsPath} ${wasmFiles}`;
     } catch (error) {
@@ -364,6 +365,7 @@ export const makeOsmosisSwapTools = async t => {
   };
 
   const persistXcsInfo = async () => {
+    await null;
     try {
       const sanitizedContracts = JSON.parse(
         JSON.stringify(xcsContracts, bigintReplacer),
@@ -380,6 +382,7 @@ export const makeOsmosisSwapTools = async t => {
   };
 
   const areContractsInstantiated = async () => {
+    await null;
     try {
       await queryContractsInfo();
       return true;
@@ -507,6 +510,7 @@ export const makeOsmosisSwapTools = async t => {
   };
 
   const isXcsStateSet = async (channelList: Channel[]) => {
+    await null;
     try {
       for (const channel of channelList) {
         await getXcsState(channel);
@@ -755,6 +759,7 @@ export const makeOsmosisSwapTools = async t => {
 
   const setupXcsContracts = async (forceInstall = false) => {
     console.log('Setting XCS contracts ...');
+    await null;
     if (!(await areContractsInstantiated()) || forceInstall) {
       console.log(`XCS contracts being downloaded ...`);
       await downloadXcsContracts(xcsContracts);
@@ -793,21 +798,22 @@ export const makeOsmosisSwapTools = async t => {
     channelList: Channel[],
   ) => {
     console.log('Setting XCS state ...');
-
-    if (!(await isXcsStateSet(channelList))) {
-      for await (const { chain, prefix } of prefixList) {
-        console.log(`Setting Prefix for ${chain} ...`);
-        await setupXcsPrefix(chain, prefix);
-      }
-
-      for await (const { primary, counterParty } of channelList) {
-        console.log(
-          `Setting Channel Link for ${primary} and ${counterParty} ...`,
-        );
-        await setupXcsChannelLink(primary, counterParty);
-      }
-    } else {
+    const alreadyDone = await isXcsStateSet(channelList);
+    if (alreadyDone) {
       console.log('XCS contracts already set');
+      return;
+    }
+
+    for await (const { chain, prefix } of prefixList) {
+      console.log(`Setting Prefix for ${chain} ...`);
+      await setupXcsPrefix(chain, prefix);
+    }
+
+    for await (const { primary, counterParty } of channelList) {
+      console.log(
+        `Setting Channel Link for ${primary} and ${counterParty} ...`,
+      );
+      await setupXcsChannelLink(primary, counterParty);
     }
   };
 
@@ -817,6 +823,7 @@ export const makeOsmosisSwapTools = async t => {
   };
 
   const isRouteSet = async (chainA: SwapParty, chainB: SwapParty) => {
+    await null;
     try {
       await getPoolRoute(chainA, chainB);
       return true;
@@ -833,23 +840,25 @@ export const makeOsmosisSwapTools = async t => {
     chainA: SwapParty = { chain: 'agoric', denom: 'ubld', amount: '1000000' },
     chainB: SwapParty = { chain: 'osmosis', denom: 'uosmo', amount: '1000000' },
   ) => {
-    if (!(await isRouteSet(chainA, chainB))) {
-      console.log(
-        `Pool being created with assets ${chainA.denom} and ${chainB.denom}`,
-      );
-      await Promise.all([
-        fundRemoteIfNecessary(chainA),
-        fundRemoteIfNecessary(chainB),
-      ]);
-      const { poolId, inDenom, outDenom } = await createPool(chainA, chainB);
-      // Don't Promise.all here to avoid sequence number mismatch
-      await setPoolRoute(inDenom, outDenom, poolId.toString());
-      await setPoolRoute(outDenom, inDenom, poolId.toString());
-    } else {
+    const alreadyDone = await isRouteSet(chainA, chainB);
+    if (alreadyDone) {
       console.log(
         `Pool with assets ${chainA.denom} and ${chainB.denom} already exists`,
       );
+      return;
     }
+
+    console.log(
+      `Pool being created with assets ${chainA.denom} and ${chainB.denom}`,
+    );
+    await Promise.all([
+      fundRemoteIfNecessary(chainA),
+      fundRemoteIfNecessary(chainB),
+    ]);
+    const { poolId, inDenom, outDenom } = await createPool(chainA, chainB);
+    // Don't Promise.all here to avoid sequence number mismatch
+    await setPoolRoute(inDenom, outDenom, poolId.toString());
+    await setPoolRoute(outDenom, inDenom, poolId.toString());
   };
 
   const setupPoolsInBatch = async (pools: Pair[]) => {

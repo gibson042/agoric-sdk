@@ -95,6 +95,7 @@ async function pollSwapPools(
 ) {
   const start = Date.now();
 
+  await null;
   while (true) {
     const swapPools = await getSwapPools({ pod, container });
     if (conditionToStopPolling(swapPools)) {

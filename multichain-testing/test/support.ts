@@ -52,6 +52,7 @@ const makeKeyring = async (
   ) => {
     _keys = keys;
     const wallets: Record<string, string> = {};
+    await null;
     for (const i in keys) {
       const res = await e2eTools.addKey(
         keys[i],
@@ -81,6 +82,7 @@ export const commonSetup = async (
   } = {},
 ) => {
   let useChain: MultichainRegistry['useChain'];
+  await null;
   try {
     const registry = await setupRegistry({
       config,

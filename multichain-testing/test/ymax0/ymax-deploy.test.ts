@@ -72,6 +72,7 @@ test('chain-info', async t => {
     await Promise.all(
       chainNames.map(async n => [
         n,
+        // eslint-disable-next-line @jessie.js/safe-await-separator
         await vsc.readPublished(`agoricNames.chain.${n}`),
       ]),
     ),
@@ -128,7 +129,8 @@ test('poc-asset', async t => {
 test('ymax-deployed', async t => {
   const { vstorageClient: vsc } = t.context;
 
-  const instance = fromEntries(await vsc.readPublished('agoricNames.instance'));
+  const instanceEntries = await vsc.readPublished('agoricNames.instance');
+  const instance = fromEntries(instanceEntries);
   t.true('ymax0' in instance);
   const id = it => it.getBoardId();
   t.log('ymax0 instance boardId:', id(instance.ymax0));

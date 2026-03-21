@@ -348,6 +348,7 @@ const main = async ({
   configFile = 'config.ymax.yaml',
   connectWithSigner = SigningStargateClient.connectWithSigner,
 } = {}) => {
+  await null;
   if ((env.NET || 'starship') === 'starship') {
     const fetcher = await useRegistry(configFile);
     await ConfigContext.init(configFile, fetcher);

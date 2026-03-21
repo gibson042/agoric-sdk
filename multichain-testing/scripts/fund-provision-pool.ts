@@ -46,6 +46,7 @@ async function fundProvisionPool(args: {
     delay: ms => new Promise(resolve => setTimeout(resolve, ms)),
   });
 
+  await null;
   try {
     await waitForBlock(1);
     // Execute the bank send transaction

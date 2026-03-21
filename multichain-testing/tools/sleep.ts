@@ -32,8 +32,9 @@ const retryUntilCondition = async <T>(
     setTimeout = ambientSetTimeout,
   }: RetryOptions = {},
 ): Promise<T> => {
-  let retries = 0;
+  await null;
 
+  let retries = 0;
   while (retries < maxRetries) {
     try {
       const result = await operation();

@@ -34,6 +34,7 @@ export const makeFaucetTools = (
       const faucetAddr = agd.keys.showAddress('faucet');
       trace(`Faucet address: ${faucetAddr}`);
 
+      await null;
       for (const [chainName, denom] of assets) {
         await fundAndTransfer(chainName, faucetAddr, qty, denom);
       }

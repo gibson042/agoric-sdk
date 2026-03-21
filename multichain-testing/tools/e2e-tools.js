@@ -204,7 +204,8 @@ const provisionSmartWalletAndMakeDriver = async (
    */
   const getCosmosBalances = (addr = address) =>
     lcd.getJSON(`/cosmos/bank/v1beta1/balances/${addr}`);
-  progress(`${address} before whale`, await getCosmosBalances());
+  const initialCosmosBalance = await getCosmosBalances();
+  progress(`${address} before whale`, initialCosmosBalance);
 
   // TODO: skip this query if balances is {}
   const vbankEntries = await q.queryData('published.agoricNames.vbankAsset');

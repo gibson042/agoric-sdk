@@ -143,6 +143,7 @@ const attestationKey = tx => {
 
 const makePoll = (setTimeout: typeof globalThis.setTimeout, period = 2_000) => {
   async function* poll<T>(thunk: () => Promise<{ done: boolean; value: T }>) {
+    await null;
     for (;;) {
       const step = await thunk();
       yield step.value;
@@ -212,6 +213,7 @@ const main = async ({
   console.log('GET attestation', `${config.circle.iris}/attestations/${key}`);
   const iris = (path: string) => fetchJSON(`${config.circle.iris}${path}`);
   const tryGetAttestation = async () => {
+    await null;
     try {
       const current = await iris(`/attestations/${key}`);
       return { done: current.status === 'complete', value: current };

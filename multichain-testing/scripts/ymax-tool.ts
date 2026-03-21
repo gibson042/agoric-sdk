@@ -190,6 +190,7 @@ const { fromEntries } = Object;
 const { make } = AmountMath;
 
 const { bytecode: walletBytecode } = JSON.parse(
+  // eslint-disable-next-line @jessie.js/safe-await-separator
   await asset('@aglocal/portfolio-deploy/tools/evm-orch/Wallet.json'),
 );
 
@@ -239,9 +240,8 @@ const openPositions = async (
   },
 ) => {
   const { readPublished } = sig.query;
-  const { USDC, BLD } = fromEntries(
-    await readPublished('agoricNames.brand'),
-  ) as Record<string, Brand<'nat'>>;
+  const brands = await readPublished('agoricNames.brand');
+  const { USDC, BLD } = fromEntries(brands) as Record<string, Brand<'nat'>>;
   // XXX PoC26 in devnet published.agoricNames.brand doesn't match vbank
   const { upoc26 } = fromEntries(await readPublished('agoricNames.vbankAsset'));
 

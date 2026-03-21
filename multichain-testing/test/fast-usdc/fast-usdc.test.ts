@@ -130,6 +130,7 @@ const makeTestContext = async (t: ExecutionContext) => {
   };
 
   const acceptInvitations = async () => {
+    await null;
     // ensure we have an unused (or used) oracle invitation in each purse
     for (const op of txOracles) {
       const { detail, usedInvitation } = await op.checkInvitation();
@@ -539,9 +540,8 @@ test.serial('lp withdraws', async t => {
     vstorageClient,
     wallets,
   } = t.context;
-  const queryClient = makeQueryClient(
-    await useChain('agoric').getRestEndpoint(),
-  );
+  const restEndpoint = await useChain('agoric').getRestEndpoint();
+  const queryClient = makeQueryClient(restEndpoint);
   const lpDoOffer = makeDoOffer(lpUser);
   const { FastLP } = await agoricNamesQ(vstorageClient).brands('nat');
   t.log('FastLP brand', FastLP);
@@ -600,9 +600,8 @@ test.serial('lp withdraws', async t => {
 
 test.serial('distribute FastUSDC contract fees', async t => {
   const io = t.context;
-  const queryClient = makeQueryClient(
-    await io.useChain('agoric').getRestEndpoint(),
-  );
+  const restEndpoint = await io.useChain('agoric').getRestEndpoint();
+  const queryClient = makeQueryClient(restEndpoint);
 
   const opts = {
     destinationAddress: io.wallets.feeDest,
@@ -735,8 +734,13 @@ test.serial('forward skipped due to invalid EUD', async t => {
   );
   t.log('settlementAccount address', settlementAccount);
 
-  const querySettlementAccountBalance = async () =>
-    (await api.queryBalance(settlementAccount, getUsdcDenom('agoric'))).balance;
+  const querySettlementAccountBalance = async () => {
+    const queryResult = await api.queryBalance(
+      settlementAccount,
+      getUsdcDenom('agoric'),
+    );
+    return queryResult.balance;
+  };
   const startingSettlementBalance = await querySettlementAccountBalance();
   t.log(
     'starting settlementAccount balance',
@@ -779,9 +783,8 @@ test.todo('test with rc2, settler-reference proposal');
 
 test.serial('sendFromSettlementAccount', async t => {
   const io = t.context;
-  const queryClient = makeQueryClient(
-    await io.useChain('agoric').getRestEndpoint(),
-  );
+  const restEndpoint = await io.useChain('agoric').getRestEndpoint();
+  const queryClient = makeQueryClient(restEndpoint);
 
   const opts = {
     destinationAddress: io.wallets.feeDest,

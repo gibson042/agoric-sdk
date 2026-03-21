@@ -54,9 +54,8 @@ const autoStakeItScenario = test.macro({
     if (!stakingDenom) throw Error(`staking denom found for ${chainName}`);
 
     // 3. Find a remoteChain validator to delegate to
-    const remoteQueryClient = makeQueryClient(
-      await useChain(chainName).getRestEndpoint(),
-    );
+    const restEndpoint = await useChain(chainName).getRestEndpoint();
+    const remoteQueryClient = makeQueryClient(restEndpoint);
     const { validators } = await remoteQueryClient.queryValidators();
     const validatorAddress = validators[0]?.operator_address;
     t.truthy(
