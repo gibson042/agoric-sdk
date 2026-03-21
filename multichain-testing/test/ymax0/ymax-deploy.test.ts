@@ -1,6 +1,7 @@
 /**
  * @file check whether things are already deployed
  */
+/* global globalThis */
 import anyTest from '@endo/ses-ava/prepare-endo.js';
 
 import {

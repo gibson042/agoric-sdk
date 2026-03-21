@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --import ts-blank-space/register
+/* global globalThis */
 /**
  * @file tools for integration testing for ymax proof of concept.
  *

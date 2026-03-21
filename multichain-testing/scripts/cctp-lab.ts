@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --import ts-blank-space/register
+/* global globalThis */
 /**
  * @file verify CCTP mintRecipient encoding by sending
  * a burn transaction to noble and verifying that

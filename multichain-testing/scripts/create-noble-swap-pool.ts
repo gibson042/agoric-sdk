@@ -1,5 +1,5 @@
 #!/usr/bin/env -S node --import ts-blank-space/register
-/* eslint-env node */
+
 import '@endo/init';
 import { execa } from 'execa';
 import { parseArgs } from 'node:util';

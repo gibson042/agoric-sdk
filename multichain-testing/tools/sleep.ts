@@ -1,3 +1,4 @@
+/* global globalThis */
 const ambientSetTimeout = globalThis.setTimeout;
 
 type Log = (...values: unknown[]) => void;

@@ -1,3 +1,4 @@
+/* global globalThis */
 import type { ExecutionContext } from 'ava';
 import { dirname, join } from 'node:path';
 import { execa } from 'execa';
