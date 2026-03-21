@@ -54,7 +54,7 @@ const makeKeyring = async (
     testKeys = keys;
     const wallets: Record<string, string> = {};
     await null;
-    for (const i in keys) {
+    for (let i = 0; i < keys.length; i += 1) {
       const res = await e2eTools.addKey(
         keys[i],
         mnemonics?.[i] || generateMnemonic(),

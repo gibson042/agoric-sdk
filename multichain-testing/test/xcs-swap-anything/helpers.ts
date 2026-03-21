@@ -44,7 +44,7 @@ export type SwapParty = { chain: string; denom: string; amount?: string };
 export type Pair = { tokenA: SwapParty; tokenB: SwapParty };
 
 type ContractInfoBase<TArgs> = {
-  codeId: number | null;
+  codeId: bigint | null;
   address: string | null;
   label: string;
   instantiateArgs: TArgs;
@@ -772,14 +772,14 @@ export const makeOsmosisSwapTools = async t => {
       await downloadXcsContracts();
 
       console.log(`XCS contracts being instantiated ...`);
-      for (const contract in xcsContracts) {
-        const { label, instantiateArgs } = xcsContracts[contract];
+      for (const contract of Object.values(xcsContracts)) {
+        const { label, instantiateArgs } = contract;
         const { codeId, address } = await instantiateSingleXcsContract(
           label,
           instantiateArgs,
         );
-        xcsContracts[contract].codeId = codeId;
-        xcsContracts[contract].address = address;
+        contract.codeId = codeId;
+        contract.address = address;
 
         if (label === 'swaprouter') {
           xcsContracts.crosschain_swaps.instantiateArgs.swap_contract = address;
