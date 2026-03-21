@@ -161,14 +161,14 @@ const stakeScenario = test.macro(async (t, scenario: StakeIcaScenario) => {
     `${scenario.chain} delegate offer satisfied without errors`,
   );
   // query remote chain to verify delegations
-  const { delegation_responses } = await retryUntilCondition(
+  const { delegation_responses: delegations } = await retryUntilCondition(
     () => queryClient.queryDelegations(address),
     result => !!result.delegation_responses.length,
     `delegations visible on ${scenario.chain}`,
   );
-  t.log('delegation balance', delegation_responses[0]?.balance);
+  t.log('delegation balance', delegations[0]?.balance);
   t.like(
-    delegation_responses[0].balance,
+    delegations[0].balance,
     { denom: scenario.denom, amount: String(FAUCET_POUR) },
     'delegations balance',
   );
@@ -228,14 +228,14 @@ const stakeScenario = test.macro(async (t, scenario: StakeIcaScenario) => {
     proposal: {},
   });
 
-  const { unbonding_responses } = await retryUntilCondition(
+  const { unbonding_responses: unbonding } = await retryUntilCondition(
     () => queryClient.queryUnbonding(address),
     result => !!result.unbonding_responses.length,
     `unbonding_responses visible on ${scenario.chain}`,
   );
-  t.log('unbonding_responses:', unbonding_responses[0].entries);
+  t.log('unbonding_responses:', unbonding[0].entries);
   t.is(
-    unbonding_responses[0].entries[0].balance,
+    unbonding[0].entries[0].balance,
     String(TOKENS_TO_UNDELEGATE),
     'undelegating 50 shares in progress',
   );

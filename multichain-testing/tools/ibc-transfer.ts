@@ -96,21 +96,21 @@ export const makeIBCTransferMsg = (
       : (timeoutTimestamp ?? getTimeout(currentTime)),
     memo,
   });
-  const { fee_tokens } = senderChainInfo.chain.fees ?? {};
-  if (!fee_tokens || !fee_tokens.length) {
+  const { fee_tokens: feeTokens } = senderChainInfo.chain.fees ?? {};
+  if (!feeTokens || !feeTokens.length) {
     throw Error(`no fee tokens in chain config for ${sender.chainName}`);
   }
-  if (fee_tokens.length > 1) {
+  if (feeTokens.length > 1) {
     console.warn(
       `Multiple fee tokens found for ${sender.chainName}, using the first one`,
     );
   }
-  const { high_gas_price, denom } = fee_tokens[0];
-  if (!high_gas_price) throw Error('no high gas price in chain config');
+  const { high_gas_price: highGasPrice, denom } = feeTokens[0];
+  if (!highGasPrice) throw Error('no high gas price in chain config');
   const fee = makeFeeObject({
     denom,
     gas: 197000,
-    gasPrice: high_gas_price,
+    gasPrice: highGasPrice,
   });
 
   const message0 = {

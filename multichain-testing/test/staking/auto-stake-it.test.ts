@@ -129,22 +129,19 @@ const autoStakeItScenario = test.macro({
     await fundAndTransfer(chainName, lcaAddress, transferAmount);
 
     // 7. verify the COA has active delegations
-    const { delegation_responses } = await retryUntilCondition(
+    const { delegation_responses: delegations } = await retryUntilCondition(
       () => remoteQueryClient.queryDelegations(icaAddress),
       result => !!result.delegation_responses.length,
       `auto-stake-it delegations visible on ${chainName}`,
       AUTO_STAKE_IT_DELEGATIONS_TIMEOUT,
     );
-    t.log('delegation balance', delegation_responses[0]?.balance);
+    t.log('delegation balance', delegations[0]?.balance);
     t.like(
-      delegation_responses[0].balance,
+      delegations[0].balance,
       { denom: stakingDenom, amount: String(transferAmount) },
       'delegations balance',
     );
-    t.log(
-      `Orchestration Account Delegations on ${chainName}`,
-      delegation_responses,
-    );
+    t.log(`Orchestration Account Delegations on ${chainName}`, delegations);
 
     // XXX consider using PortfolioHolder continuing inv to undelegate
 

@@ -158,9 +158,9 @@ const signArgsFor = (from: Who, config: typeof configs.testnet.noble) =>
   ].flat();
 
 const parseTx = stdout => {
-  const { code, raw_log, txhash } = JSON.parse(stdout);
+  const { code, raw_log: log, txhash } = JSON.parse(stdout);
   if (code !== 0) {
-    throw Error(raw_log);
+    throw Error(log);
   }
   return txhash;
 };

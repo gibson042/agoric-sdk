@@ -50,8 +50,10 @@ const PROVISIONING_POOL_ADDR = 'agoric1megzytg65cyrgzs6fvzxgrcqvwwl7ugpt62346';
 const BLD = '000000ubld';
 
 export const txAbbr = tx => {
+  // eslint-disable-next-line camelcase
   const { txhash, code, height, gas_used } = tx;
 
+  // eslint-disable-next-line camelcase
   return { txhash, code, height, gas_used };
 };
 

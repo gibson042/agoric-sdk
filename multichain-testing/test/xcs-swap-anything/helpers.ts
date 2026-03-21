@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 import { osmosis } from 'osmojs';
 import {
   MsgStoreCode,
