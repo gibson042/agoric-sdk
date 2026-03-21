@@ -45,12 +45,12 @@ export const chainConfig: Record<string, { expectedAddressPrefix: string }> = {
 const makeKeyring = async (
   e2eTools: Pick<E2ETools, 'addKey' | 'deleteKey'>,
 ) => {
-  let _keys = ['user1'];
+  let testKeys = ['user1'];
   const setupTestKeys = async (
-    keys = ['user1'],
+    keys: string[] = ['user1'],
     mnemonics?: (string | undefined)[],
   ) => {
-    _keys = keys;
+    testKeys = keys;
     const wallets: Record<string, string> = {};
     await null;
     for (const i in keys) {
@@ -66,7 +66,7 @@ const makeKeyring = async (
 
   const deleteTestKeys = (keys: string[] = []) =>
     Promise.allSettled(
-      Array.from(new Set([...keys, ..._keys])).map(key =>
+      Array.from(new Set([...keys, ...testKeys])).map(key =>
         e2eTools.deleteKey(key).catch(),
       ),
     ).catch();

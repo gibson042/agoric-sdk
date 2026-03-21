@@ -47,7 +47,9 @@ const USDC_ADDRESSES = {
  */
 const loadEnv = () => {
   try {
+    // eslint-disable-next-line no-underscore-dangle
     const __filename = fileURLToPath(import.meta.url);
+    // eslint-disable-next-line no-underscore-dangle
     const __dirname = dirname(__filename);
     const envPath = resolve(__dirname, '.env');
     const envContent = readFileSync(envPath, 'utf-8');

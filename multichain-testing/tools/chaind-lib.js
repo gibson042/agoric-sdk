@@ -30,7 +30,7 @@ const chainToBinary = {
  * @param {string} chainName
  * @returns {string[]} - e.g. ['exec', '-i', 'agoriclocal-genesis-0', '-c', 'validator', '--tty=false', '--', 'agd']
  */
-const binaryArgs = (chainName = 'agoric') => [
+const makeCliArgs = (chainName = 'agoric') => [
   'exec',
   '-i',
   `${chainName}local-genesis-0`,
@@ -90,15 +90,15 @@ export const makeAgd = ({ execFileSync }) => {
       args,
       opts = { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] },
     ) => {
-      let _binaryArgs = binaryArgs(chainName);
+      let cliArgs = makeCliArgs(chainName);
       const shouldBeInteractive = opts.stdio[0] !== 'ignore';
       if (!shouldBeInteractive) {
-        _binaryArgs = _binaryArgs.filter(
+        cliArgs = cliArgs.filter(
           arg => !['-i', '--stdin'].some(a => arg.startsWith(a)),
         );
       }
 
-      return execFileSync(kubectlBinary, [..._binaryArgs, ...args], opts);
+      return execFileSync(kubectlBinary, [...cliArgs, ...args], opts);
     };
 
     const outJson = toCLIOptions({ output: 'json' });
@@ -118,7 +118,7 @@ export const makeAgd = ({ execFileSync }) => {
 
         // This hack (2>&1) is because some appds write version to stderr!
         // TODO: Instead figure out reading version from chain's RPC endpoint instead of stderr (https://github.com/Agoric/agoric-sdk/issues/11496).
-        const kubectlArgs = binaryArgs(chainName);
+        const kubectlArgs = makeCliArgs(chainName);
         const appd = kubectlArgs.pop();
         const args = [
           `/bin/sh`,
@@ -305,7 +305,7 @@ export const makeAgd = ({ execFileSync }) => {
           return execFileSync(
             kubectlBinary,
             [
-              ...binaryArgs(chainName),
+              ...makeCliArgs(chainName),
               ...keyringArgs,
               'keys',
               'add',
@@ -324,7 +324,7 @@ export const makeAgd = ({ execFileSync }) => {
           return execFileSync(
             kubectlBinary,
             [
-              ...binaryArgs(chainName),
+              ...makeCliArgs(chainName),
               'keys',
               'show',
               name,
