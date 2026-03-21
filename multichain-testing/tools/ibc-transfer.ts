@@ -55,6 +55,7 @@ export const getTimeout = (ms: number = 0, minutes = 5n) => {
   // and we are observing failed transfers with timeouts years in the past.
   // see https://github.com/Agoric/agoric-sdk/actions/runs/9967903776/job/27542288963#step:12:336
   return DEFAULT_TIMEOUT_NS;
+  // eslint-disable-next-line no-unreachable
   const timeoutMS =
     BigInt(ms) + MILLISECONDS_PER_SECOND * SECONDS_PER_MINUTE * minutes;
   const timeoutNS = timeoutMS * NANOSECONDS_PER_MILLISECOND;

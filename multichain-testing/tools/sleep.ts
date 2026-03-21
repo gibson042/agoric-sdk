@@ -50,7 +50,7 @@ const retryUntilCondition = async <T>(
       }
     }
 
-    retries++;
+    retries += 1;
     log(
       `Retry ${retries}/${maxRetries} - Waiting for ${retryIntervalMs}ms for ${message}...`,
     );

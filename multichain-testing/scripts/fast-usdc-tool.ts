@@ -169,7 +169,7 @@ const main = async () => {
     const accounts = ['lp'];
     await deleteTestKeys(accounts).catch();
     const wallets = await setupTestKeys(accounts);
-    const lpUser = await provisionSmartWallet(wallets['lp'], {
+    const lpUser = await provisionSmartWallet(wallets.lp, {
       USDC: 8_000n,
       BLD: 100n,
     });

@@ -183,7 +183,6 @@ const main = async ({
     const client = await connectWithSigner(
       config.noble.rpc,
       wallet,
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore XXX cosmjs types
       clientOpts,
     );

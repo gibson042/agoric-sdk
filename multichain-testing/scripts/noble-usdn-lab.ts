@@ -390,6 +390,7 @@ const main = async ({
   }
   if (env.POOL) {
     throw Error('does not work; needs to use authority exec');
+    // eslint-disable-next-line no-unreachable
     const { stdout } = await createPool($v, config);
     console.log(JSON.parse(stdout));
   }

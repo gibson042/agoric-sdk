@@ -346,7 +346,7 @@ const openPositionsEVM = async ({
 
   const allocations: Allocation[] = Object.entries(targetAllocation).map(
     ([instrument, amount]) => ({
-      instrument: instrument,
+      instrument,
       portion: amount,
     }),
   );
@@ -358,7 +358,7 @@ const openPositionsEVM = async ({
 
   const deposit: TokenPermissions = {
     token: axelarChainConfig.contracts.usdc,
-    amount: amount,
+    amount,
   };
 
   const witness = getYmaxWitness('OpenPortfolio', { allocations });
@@ -872,6 +872,7 @@ const main = async (
   } catch (err) {
     // If we should exit with success code, throw a special non-error object
     if (values['exit-success']) {
+      // eslint-disable-next-line no-throw-literal
       throw { exitSuccess: true, originalError: err };
     }
     throw err;

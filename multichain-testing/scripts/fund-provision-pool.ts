@@ -70,7 +70,7 @@ async function fundProvisionPool(args: {
     ]);
     const resultData = JSON.parse(txResult);
     if (resultData.code !== 0) {
-      throw new Error(`Transaction failed: ${resultData['raw_log']}`);
+      throw new Error(`Transaction failed: ${resultData.raw_log}`);
     }
 
     // Query the balance to confirm
