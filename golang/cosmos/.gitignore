@@ -89,4 +89,3 @@ typings/
 /binding.gyp
 *-stamp
 build/
-*.proto.orig
