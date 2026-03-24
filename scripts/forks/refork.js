@@ -56,7 +56,11 @@ const getFileDiffFilename = blockLines => {
 };
 
 export const splitPatchIntoFileDiffs = patchText => {
-  if (!patchText || patchText === 'No diff.\n' || patchText.trim() === 'No diff.') {
+  if (
+    !patchText ||
+    patchText === 'No diff.\n' ||
+    patchText.trim() === 'No diff.'
+  ) {
     return new Map();
   }
 
@@ -89,7 +93,9 @@ export const splitPatchIntoFileDiffs = patchText => {
   return fileDiffs;
 };
 
-export const streamPatchFileDiffs = async function* streamPatchFileDiffs(patchPath) {
+export const streamPatchFileDiffs = async function* streamPatchFileDiffs(
+  patchPath,
+) {
   const rl = readline.createInterface({
     input: createReadStream(patchPath, { encoding: 'utf8' }),
     crlfDelay: Infinity,
@@ -137,7 +143,12 @@ const writeRawWholePatchDiff = async ({
     throw new Error(`diff exited with code ${exitCode}`);
   }
 
-  await writeFile(diffOfDiffsRawPath, diffStdout ? `${diffStdout}${diffStdout.endsWith('\n') ? '' : '\n'}` : 'No diff.\n');
+  await writeFile(
+    diffOfDiffsRawPath,
+    diffStdout
+      ? `${diffStdout}${diffStdout.endsWith('\n') ? '' : '\n'}`
+      : 'No diff.\n',
+  );
 };
 
 export const writePairedDiffOfDiffs = async ({
@@ -149,11 +160,15 @@ export const writePairedDiffOfDiffs = async ({
   diffDevNull = false,
 }) => {
   const outputStream = createWriteStream(diffOfDiffsPath, { encoding: 'utf8' });
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'refork-diff-of-diffs-'));
+  const tempDir = await mkdtemp(
+    path.join(os.tmpdir(), 'refork-diff-of-diffs-'),
+  );
   const tempAPatchPath = path.join(tempDir, 'a.patch');
   const tempBPatchPath = path.join(tempDir, 'b.patch');
-  const aIterator = streamPatchFileDiffs(forkBasePatchPath)[Symbol.asyncIterator]();
-  const bIterator = streamPatchFileDiffs(diffMergePatchPath)[Symbol.asyncIterator]();
+  const aIterator =
+    streamPatchFileDiffs(forkBasePatchPath)[Symbol.asyncIterator]();
+  const bIterator =
+    streamPatchFileDiffs(diffMergePatchPath)[Symbol.asyncIterator]();
   let diffCount = 0;
   try {
     await writeRawWholePatchDiff({
@@ -264,7 +279,14 @@ const main = async ({ args }) => {
   const excludeGlobs =
     values.exclude && values.exclude.length > 0
       ? values.exclude.filter(Boolean)
-      : ['**/*.pb.go', '**/*.pb.gw.go', '**/*.pulsar.go', '**/*.sum', '**/mocks/**', '**/swagger-ui/**'];
+      : [
+          '**/*.pb.go',
+          '**/*.pb.gw.go',
+          '**/*.pulsar.go',
+          '**/*.sum',
+          '**/mocks/**',
+          '**/swagger-ui/**',
+        ];
 
   const DESCRIPTION =
     'Update a long-lived fork to include changes from its base to a new target';
@@ -302,7 +324,10 @@ Example: ${EXAMPLE}`);
   const workspace = 'refork-workspace';
   const cwd = process.cwd();
   const workspaceDir = path.join(cwd, workspace);
-  const diffUpstreamStatPath = path.join(workspaceDir, 'diff-upstream-stat.txt');
+  const diffUpstreamStatPath = path.join(
+    workspaceDir,
+    'diff-upstream-stat.txt',
+  );
   const diffUpstreamPatchPath = path.join(workspaceDir, 'diff-upstream.patch');
   const forkBasePatchPath = path.join(workspaceDir, 'fork-base.patch');
   const diffMergeStatPath = path.join(workspaceDir, 'merge-fork-stat.txt');
@@ -352,7 +377,7 @@ Example: ${EXAMPLE}`);
   await null;
   const originalBranch = await gitStdout(['rev-parse', '--abbrev-ref', 'HEAD']);
 
-    if (dryRun) {
+  if (dryRun) {
     console.warn(`[dry-run] Skipping create workspace dir ${workspaceDir}.`);
   } else {
     await mkdir(workspaceDir, { recursive: true });
@@ -469,17 +494,35 @@ Example: ${EXAMPLE}`);
     const mergeForkExists = await refExists(mergeFork);
 
     const diffUpstreamStat = diffUpstreamExists
-      ? await gitStdout(['diff', '--no-pager', '--stat', targetRef, diffUpstream])
+      ? await gitStdout([
+          'diff',
+          '--no-pager',
+          '--stat',
+          targetRef,
+          diffUpstream,
+        ])
       : '';
     const diffUpstreamPatch = diffUpstreamExists
       ? await gitStdout(['diff', '--no-pager', targetRef, diffUpstream])
       : '';
     const diffUpstreamFiles = diffUpstreamExists
-      ? await gitStdout(['diff', '--no-pager', '--name-only', targetRef, diffUpstream])
+      ? await gitStdout([
+          'diff',
+          '--no-pager',
+          '--name-only',
+          targetRef,
+          diffUpstream,
+        ])
       : '';
     const remainingDiffUpstream =
       diffUpstreamExists && !mergeInProgress
-        ? await gitStdout(['diff', '--no-pager', '--name-status', targetRef, diffUpstream])
+        ? await gitStdout([
+            'diff',
+            '--no-pager',
+            '--name-status',
+            targetRef,
+            diffUpstream,
+          ])
         : '';
     const forkBasePatch = await gitDiffWithExcludes(baseRef, forkBranch);
 
@@ -490,7 +533,13 @@ Example: ${EXAMPLE}`);
       ? await gitDiffWithExcludes(targetRef, mergeFork)
       : '';
     const mergeFiles = mergeForkExists
-      ? await gitStdout(['diff', '--no-pager', '--name-only', forkBranch, mergeFork])
+      ? await gitStdout([
+          'diff',
+          '--no-pager',
+          '--name-only',
+          forkBranch,
+          mergeFork,
+        ])
       : '';
 
     return {
@@ -617,11 +666,16 @@ Example: ${EXAMPLE}`);
       '',
       '## DiffUpstream normalization',
       `- Remaining diffs vs target: ${
-        diffUpstreamFiles ? diffUpstreamFiles.split('\n').filter(Boolean).length : 0
+        diffUpstreamFiles
+          ? diffUpstreamFiles.split('\n').filter(Boolean).length
+          : 0
       }`,
       ...(diffUpstreamExists
         ? remainingEntries.length
-          ? ['- Remaining entries:', ...remainingEntries.map(line => `  - ${line}`)]
+          ? [
+              '- Remaining entries:',
+              ...remainingEntries.map(line => `  - ${line}`),
+            ]
           : ['- Remaining entries: none']
         : ['- Remaining entries: unavailable']),
       '',
@@ -669,7 +723,11 @@ Example: ${EXAMPLE}`);
     await checkoutBranch(mergeFork, forkBranch);
     await mergeWithResume(diffUpstream);
 
-    const currentBranch = await gitStdout(['rev-parse', '--abbrev-ref', 'HEAD']);
+    const currentBranch = await gitStdout([
+      'rev-parse',
+      '--abbrev-ref',
+      'HEAD',
+    ]);
     const mergeInProgress = await hasMergeInProgress();
     const report = await writeWorkspaceReport(
       await collectWorkspaceState({ currentBranch, mergeInProgress }),

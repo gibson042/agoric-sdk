@@ -32,8 +32,14 @@ test('splitPatchIntoFileDiffs indexes per-file diffs by filename', () => {
   const fileDiffs = splitPatchIntoFileDiffs(patch);
 
   assert.deepEqual([...fileDiffs.keys()], ['alpha.txt', 'bravo.txt']);
-  assert.match(fileDiffs.get('alpha.txt'), /^diff --git a\/alpha\.txt b\/alpha\.txt/m);
-  assert.match(fileDiffs.get('bravo.txt'), /^diff --git a\/bravo\.txt b\/bravo\.txt/m);
+  assert.match(
+    fileDiffs.get('alpha.txt'),
+    /^diff --git a\/alpha\.txt b\/alpha\.txt/m,
+  );
+  assert.match(
+    fileDiffs.get('bravo.txt'),
+    /^diff --git a\/bravo\.txt b\/bravo\.txt/m,
+  );
 });
 
 test('splitPatchIntoFileDiffs prefers added filename and falls back from /dev/null', () => {
@@ -64,7 +70,10 @@ test('splitPatchIntoFileDiffs prefers added filename and falls back from /dev/nu
 
   const fileDiffs = splitPatchIntoFileDiffs(patch);
 
-  assert.deepEqual([...fileDiffs.keys()], ['newer.txt', 'created.txt', 'deleted.txt']);
+  assert.deepEqual(
+    [...fileDiffs.keys()],
+    ['newer.txt', 'created.txt', 'deleted.txt'],
+  );
 });
 
 test('streamPatchFileDiffs yields file diffs in input order', async () => {
@@ -164,11 +173,17 @@ test('writePairedDiffOfDiffs summarizes /dev/null pairs by default', async () =>
 
     assert.notEqual(raw, filtered);
     assert.match(raw, /--- fork-base\.patch\n\+\+\+ merge-fork\.patch/);
-    assert.match(filtered, /diff -u fork-base\/alpha\.txt merge-fork\/alpha\.txt\n--- fork-base\/alpha\.txt\n\+\+\+ merge-fork\/alpha\.txt/);
+    assert.match(
+      filtered,
+      /diff -u fork-base\/alpha\.txt merge-fork\/alpha\.txt\n--- fork-base\/alpha\.txt\n\+\+\+ merge-fork\/alpha\.txt/,
+    );
     assert.match(filtered, /Deleted file fork-base\/only-a\.txt/);
     assert.match(filtered, /Created file merge-fork\/only-b\.txt/);
     assert.doesNotMatch(filtered, /diff -u fork-base\/only-a\.txt \/dev\/null/);
-    assert.doesNotMatch(filtered, /diff -u \/dev\/null merge-fork\/only-b\.txt/);
+    assert.doesNotMatch(
+      filtered,
+      /diff -u \/dev\/null merge-fork\/only-b\.txt/,
+    );
   } finally {
     await rm(workspaceDir, { recursive: true, force: true });
   }
@@ -206,7 +221,10 @@ test('writePairedDiffOfDiffs emits full /dev/null diffs when diffDevNull is enab
     });
 
     const filtered = await readFile(diffOfDiffsPath, 'utf8');
-    assert.match(filtered, /diff -u fork-base\/only-a\.txt \/dev\/null\n--- fork-base\/only-a\.txt\n\+\+\+ \/dev\/null/);
+    assert.match(
+      filtered,
+      /diff -u fork-base\/only-a\.txt \/dev\/null\n--- fork-base\/only-a\.txt\n\+\+\+ \/dev\/null/,
+    );
   } finally {
     await rm(workspaceDir, { recursive: true, force: true });
   }

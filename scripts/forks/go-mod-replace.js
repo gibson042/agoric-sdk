@@ -35,7 +35,10 @@ const go = async (args, options = {}) => {
 
 const goStdout = async (args, options = {}) => {
   const { stdio, ...restOpts } = options;
-  const result = await go(args, { stdio: stdio ?? ['inherit', 'pipe', 'inherit'], ...restOpts });
+  const result = await go(args, {
+    stdio: stdio ?? ['inherit', 'pipe', 'inherit'],
+    ...restOpts,
+  });
   const stdout = `${result.stdout ?? ''}`.trim();
   return stdout;
 };
