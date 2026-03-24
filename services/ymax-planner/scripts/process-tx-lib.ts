@@ -192,7 +192,6 @@ export const processTx = async (
         ...evmCtx,
         retryProviders,
         cosmosRest,
-        cosmosRpc: rpc,
         fetch,
         setTimeout,
         kvStore,

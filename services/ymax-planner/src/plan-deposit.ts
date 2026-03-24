@@ -23,9 +23,13 @@ import type {
 } from '@agoric/portfolio-api';
 import { ACCOUNT_DUST_EPSILON, isInstrumentId } from '@agoric/portfolio-api';
 
+import type { EvmAddress } from '@agoric/fast-usdc';
 import type { CosmosRestClient } from './cosmos-rest-client.js';
-import { getErc20PositionBalances } from './evm-utils.ts';
-import type { ChainAddressTokenBalance } from './graphql/api-spectrum-blockchain/__generated/graphql.ts';
+import { getErc20Balances } from './evm-utils.ts';
+import type {
+  ChainAddressTokenBalance,
+  ChainAddressTokenInput as SpectrumAccountQuery,
+} from './graphql/api-spectrum-blockchain/__generated/graphql.ts';
 import type { Sdk as SpectrumBlockchainSdk } from './graphql/api-spectrum-blockchain/__generated/sdk.ts';
 import type { EvmChain } from './pending-tx-manager.ts';
 import type { EvmProviders } from './support.ts';
@@ -49,54 +53,54 @@ const isNonemptyPositionEntry = (entry: [AssetPlaceRef, NatValue]): boolean => {
   return isInstrumentId(place) && value > 0n;
 };
 
-// Note the differences in the shape of field `balance` between the two Spectrum
-// APIs (string vs. Record<'USDC' | 'USD' | string, number>).
-type AccountBalance = ChainAddressTokenBalance['balance'];
-const amountFromAccountBalance = (
+const amountFromSpectrumAccountBalance = (
   brand: Brand<'nat'>,
-  balance: AccountBalance,
+  balance: ChainAddressTokenBalance['balance'],
 ) =>
   balance === undefined
     ? undefined
     : AmountMath.make(brand, scale6(Number(balance)));
+
 export type BalanceQueryPowers = {
   cosmosRest: CosmosRestClient;
   spectrumBlockchain: SpectrumBlockchainSdk;
   spectrumChainIds: Partial<Record<SupportedChain, string>>;
-  positionTokenAddresses: Partial<
-    Record<InterChainAccountRef | PoolKey, string>
+  evmTokenAddresses: Partial<
+    Record<InterChainAccountRef | PoolKey, EvmAddress>
   >;
   usdcTokensByChain: Partial<Record<SupportedChain, string>>;
   evmProviders: EvmProviders;
   chainNameToChainIdMap: Partial<Record<EvmChain, CaipChainId>>;
 };
 
-type AccountQueryDescriptor = {
+type BalanceQueryDescriptor = {
   place: AssetPlaceRef;
   chainName: SupportedChain;
   address: string;
-  asset: string;
+  token: string;
 };
 
-type PositionQueryDescriptor = {
+type AlchemyBalanceQuery = BalanceQueryDescriptor & {
   place: InterChainAccountRef | PoolKey;
-  chainName: SupportedChain;
-  protocol: PoolPlaceInfo['protocol'] | 'USDC';
-  address: string;
+  token: PoolPlaceInfo['protocol'] | 'USDC';
 };
 
 const makeSpectrumAccountQuery = (
-  desc: AccountQueryDescriptor,
+  desc: {
+    chainName: SupportedChain;
+    address: string;
+    asset: string;
+  },
   powers: BalanceQueryPowers,
-) => {
+): SpectrumAccountQuery => {
   const { chainName, address, asset } = desc;
   const chainId = lookupValueForKey(powers.spectrumChainIds, chainName);
-  if (asset !== 'USDC') {
-    // "USDN" -> "usdn"
-    return { chain: chainId, address, token: asset.toLowerCase() };
-  }
-  const token = lookupValueForKey(powers.usdcTokensByChain, chainName);
-  return { chain: chainId, address, token };
+  const token =
+    asset === 'USDC'
+      ? lookupValueForKey(powers.usdcTokensByChain, chainName)
+      : // "USDN" -> "usdn"
+        asset.toLowerCase();
+  return { ...desc, chain: chainId, address, token };
 };
 
 export const getCurrentBalances = async (
@@ -107,10 +111,14 @@ export const getCurrentBalances = async (
   const { positionKeys, accountIdByChain } = status;
   const { spectrumBlockchain } = powers;
   const addressInfo = new Map<SupportedChain, Caip10Record>();
-  const spectrumQueries = [] as AccountQueryDescriptor[];
-  const alchemyQueries = [] as PositionQueryDescriptor[];
+  /** Queries for Alchemy (EVM account & position balances) */
+  const alchemyQueries = [] as AlchemyBalanceQuery[];
+  /** Queries for the Spectrum Blockchain API (non-EVM account balances) */
+  const spectrumAccountQueries: Array<SpectrumAccountQuery> = [];
   const balances = new Map<AssetPlaceRef, NatAmount | undefined>();
   const errors = [] as Error[];
+
+  // Define account queries (EVM chains via Alchemy, others via Spectrum).
   for (const [chainName, accountId] of typedEntries(
     accountIdByChain as Required<typeof accountIdByChain>,
   )) {
@@ -121,21 +129,29 @@ export const getCurrentBalances = async (
       addressInfo.set(chainName, addressParts);
       const { namespace, accountAddress: address } = addressParts;
       if (namespace === 'eip155') {
-        // EVM chain USDC balances are fetched directly via Alchemy.
         alchemyQueries.push({
           place: place as `@${EvmChain}`,
           chainName,
-          protocol: 'USDC',
           address,
+          token: 'USDC',
         });
       } else {
-        spectrumQueries.push({ place, chainName, address, asset: 'USDC' });
+        const query = makeSpectrumAccountQuery(
+          { place, chainName, address, asset: 'USDC' },
+          powers,
+        );
+        spectrumAccountQueries.push(query);
       }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (_err) {
-      errors.push(Error(`Invalid CAIP-10 address for chain: ${chainName}`));
+    } catch (cause) {
+      const err = Error(
+        `Cannot make query for ${chainName} address ${accountId}`,
+        { cause },
+      );
+      errors.push(err);
     }
   }
+
+  // Define position queries (EVM chains via Alchemy, others via Spectrum).
   for (const instrument of positionKeys) {
     const place = instrument;
     balances.set(place, undefined);
@@ -147,55 +163,69 @@ export const getCurrentBalances = async (
       const { namespace, accountAddress: address } =
         addressInfo.get(chainName) ||
         Fail`No ${chainName} address for instrument ${instrument}`;
-      if (namespace !== 'eip155') {
-        // A USDN Vault is queried as an "account" rather than a "position".
-        spectrumQueries.push({ place, chainName, address, asset: protocol });
+      if (namespace === 'eip155') {
+        alchemyQueries.push({ place, chainName, address, token: protocol });
       } else {
-        // EVM position queries (Aave, Beefy, Compound, ERC4626) are issued directly.
-        alchemyQueries.push({ place, chainName, protocol, address });
+        const query = makeSpectrumAccountQuery(
+          { place, chainName, address, asset: protocol },
+          powers,
+        );
+        spectrumAccountQueries.push(query);
       }
     } catch (err) {
       errors.push(err);
     }
   }
 
-  const spectrumAccountQueries = spectrumQueries.map(desc =>
-    makeSpectrumAccountQuery(desc, powers),
-  );
-
-  const [spectrumResult, alchemyResult] = await Promise.allSettled([
+  const [alchemyResult, spectrumAccountResult] = await Promise.allSettled([
+    alchemyQueries.length
+      ? getErc20Balances(alchemyQueries, powers)
+      : { balances: [] },
     spectrumAccountQueries.length
       ? spectrumBlockchain.getBalances({ accounts: spectrumAccountQueries })
-      : { balances: [] },
-    alchemyQueries.length
-      ? getErc20PositionBalances(alchemyQueries, powers)
       : { balances: [] },
   ]);
 
   if (
-    spectrumResult.status !== 'fulfilled' ||
-    alchemyResult.status !== 'fulfilled'
+    alchemyResult.status !== 'fulfilled' ||
+    spectrumAccountResult.status !== 'fulfilled'
   ) {
-    const rejections = [spectrumResult, alchemyResult].flatMap(settlement =>
-      settlement.status === 'fulfilled' ? [] : [settlement.reason],
+    const rejections = [alchemyResult, spectrumAccountResult].flatMap(
+      settlement =>
+        settlement.status === 'fulfilled' ? [] : [settlement.reason],
     );
     errors.push(...rejections);
     throw AggregateError(errors, 'Could not get balances');
   }
-  const spectrumBalances = spectrumResult.value.balances;
   const alchemyBalances = alchemyResult.value.balances;
+  const spectrumAccountBalances = spectrumAccountResult.value.balances;
   if (
-    spectrumBalances.length !== spectrumQueries.length ||
-    alchemyBalances.length !== alchemyQueries.length
+    alchemyBalances.length !== alchemyQueries.length ||
+    spectrumAccountBalances.length !== spectrumAccountQueries.length
   ) {
-    const msg = `Bad balance query response(s), expected [${[spectrumBalances.length, alchemyBalances.length]}] results but got [${[spectrumQueries.length, alchemyQueries.length]}]`;
+    const msg = `Bad balance query response(s), expected [${[alchemyBalances.length, spectrumAccountBalances.length]}] results but got [${[alchemyQueries.length, spectrumAccountQueries.length]}]`;
     throw AggregateError(errors, msg);
   }
-  for (let i = 0; i < spectrumQueries.length; i += 1) {
-    const { place, asset } = spectrumQueries[i];
-    const result = spectrumBalances[i];
+
+  for (let i = 0; i < alchemyBalances.length; i += 1) {
+    const { place, balance, error } = alchemyBalances[i];
+    if (error) {
+      errors.push(Error(error));
+    }
+    balances.set(
+      place as AssetPlaceRef,
+      balance === undefined ? undefined : AmountMath.make(brand, balance),
+    );
+  }
+
+  for (let i = 0; i < spectrumAccountQueries.length; i += 1) {
+    const { place, token: asset } = spectrumAccountQueries[i];
+    const result = spectrumAccountBalances[i];
     if (result.error) errors.push(Error(result.error));
-    const balanceAmount = amountFromAccountBalance(brand, result.balance);
+    const balanceAmount = amountFromSpectrumAccountBalance(
+      brand,
+      result.balance,
+    );
     balances.set(place, balanceAmount);
     // XXX as of 2025-11-19, spectrumBlockchain.getBalances returns @agoric
     // IBC USDC balances in micro-USDC (uusdc) rather than USDC like the rest.
@@ -205,20 +235,6 @@ export const getCurrentBalances = async (
         errors.push(Error(msg));
       }
       balances.set(place, AmountMath.make(brand, BigInt(result.balance)));
-    }
-  }
-  for (let i = 0; i < alchemyBalances.length; i += 1) {
-    const result = alchemyBalances[i];
-    if (result.error) {
-      errors.push(Error(result.error));
-    }
-    if (result.balance === undefined) {
-      balances.set(result.place as AssetPlaceRef, undefined);
-    } else {
-      balances.set(
-        result.place as AssetPlaceRef,
-        AmountMath.make(brand, result.balance),
-      );
     }
   }
 

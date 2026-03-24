@@ -17,7 +17,6 @@ import type {
 import type { KVStore } from '@agoric/internal/src/kv-store.js';
 
 import type { CosmosRestClient } from './cosmos-rest-client.ts';
-import type { CosmosRPCClient } from './cosmos-rpc.ts';
 import { resolvePendingTx } from './resolver.ts';
 import { waitForBlock, type EvmRpc } from './evm-scanner.ts';
 import type {
@@ -612,7 +611,6 @@ const MONITORS = new Map<
 ]);
 
 export type HandlePendingTxOpts = {
-  cosmosRpc: CosmosRPCClient;
   log?: (...args: unknown[]) => void;
   error?: (...args: unknown[]) => void;
   marshaller: SigningSmartWalletKit['marshaller'];
