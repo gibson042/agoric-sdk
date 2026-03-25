@@ -15,7 +15,6 @@ try {
 }
 
 const root = process.cwd();
-const pkgsDir = path.join(root, 'packages');
 
 console.log('Discovering packages with a codegen script...');
 
