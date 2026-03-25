@@ -119,7 +119,7 @@ const parseOperationResultLog = (
   abiCoder: AbiCoder = new AbiCoder(),
 ): {
   idHash: string;
-  sourceAddress: string;
+  txIdPlaintext: string;
   allegedRemoteAccount: string;
   instructionSelector: string;
   success: boolean;
@@ -131,14 +131,14 @@ const parseOperationResultLog = (
 
   const idHash = log.topics[1];
   const allegedRemoteAccount = log.topics[3];
-  const [sourceAddress, instructionSelector, success, reason] = abiCoder.decode(
+  const [txIdPlaintext, instructionSelector, success, reason] = abiCoder.decode(
     ['string', 'bytes4', 'bool', 'bytes'],
     log.data,
   );
 
   return {
     idHash,
-    sourceAddress,
+    txIdPlaintext,
     allegedRemoteAccount,
     instructionSelector,
     success,
