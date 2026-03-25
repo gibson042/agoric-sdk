@@ -19,7 +19,7 @@ per https://agents.md/
 - `yarn format`: Format code via dprint; `yarn lint:format` to check only.
 - Git hooks: installed by `scripts/install-git-hooks.sh`.
   - Install or refresh hooks with `yarn hooks:install`.
-  - Pre-commit runs `scripts/git-hooks/pre-commit-dprint.sh`, which formats only staged JS/TS files with the pinned local binary `./node_modules/.bin/dprint` and re-stages them.
+  - Pre-commit runs `scripts/git-hooks/pre-commit-dprint.sh`, which formats staged JS/TS files with the pinned local binary `./node_modules/.bin/dprint`, auto-restages files that were fully staged already, and prints a custom message if formatting changes touched partially staged files.
 - `./scripts/env-doctor.sh`: Verify toolchain (Node, Go, compiler) versions.
 - Example, single package: `cd packages/eventual-send && yarn test`.
 - Packing/debugging workflow:
