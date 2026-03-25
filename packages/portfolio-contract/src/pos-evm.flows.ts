@@ -94,18 +94,22 @@ export const sendGMPContractCall: typeof sendLegacyGMPContractCall = async (
   gmpAcct,
   ...args
 ) =>
-  gmpAcct.routerAddress
+  gmpAcct.routerFactory
     ? sendRoutedGMPContractCall(ctx, gmpAcct, ...args)
-    : sendLegacyGMPContractCall(ctx, gmpAcct, ...args);
+    : gmpAcct.routerAddress
+      ? Fail`Unsupported beta router-based account`
+      : sendLegacyGMPContractCall(ctx, gmpAcct, ...args);
 
 export const sendPermit2GMP: typeof sendLegacyPermit2GMP = async (
   ctx,
   gmpAcct,
   ...args
 ) =>
-  gmpAcct.routerAddress
+  gmpAcct.routerFactory
     ? sendRoutedPermit2GMP(ctx, gmpAcct, ...args)
-    : sendLegacyPermit2GMP(ctx, gmpAcct, ...args);
+    : gmpAcct.routerAddress
+      ? Fail`Unsupported beta router-based account`
+      : sendLegacyPermit2GMP(ctx, gmpAcct, ...args);
 
 export const provideEVMAccount: typeof provideEVMLegacyAccount = (...args) => {
   const chainName = args[0];

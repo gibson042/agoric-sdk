@@ -2579,7 +2579,7 @@ const provideFailsOnIncompatibleAccount = test.macro({
       namespace: 'eip155',
       chainId: `eip155:${chainInfo.reference}`,
       remoteAddress: '0xExistingIncompatibleAccount',
-      ...(withRouter ? { routerAddress: '0xRouterAddress' } : {}),
+      ...(withRouter ? { routerFactory: '0xRouterFactoryAddress' } : {}),
     });
 
     const progressTracker = makeProgressTracker();
@@ -3724,7 +3724,7 @@ test('evmHandler.deposit via Permit2 to missing and existing wallet with router 
   t.deepEqual(accountsPending, []);
   t.like(accountStateByChain.Arbitrum, {
     state: 'active',
-    router: contractsMock.Arbitrum.remoteAccountRouter,
+    routerFactory: contractsMock.Arbitrum.remoteAccountFactory,
   });
 
   await doDeposit({ t, kit, orch, ctx, storage, txResolver, permitDetails });
@@ -4036,7 +4036,7 @@ const sendGMPContractCallTest = test.macro({
       remoteAddress: '0x1234567890AbcdEF1234567890aBcdef12345678',
       chainId: 'eip155:43114',
       ...(useRouter
-        ? { routerAddress: contractsMock.Avalanche.remoteAccountRouter }
+        ? { routerFactory: contractsMock.Avalanche.remoteAccountFactory }
         : {}),
     } as const;
 
@@ -4105,7 +4105,7 @@ const sendPermit2GMPTest = test.macro({
       remoteAddress: '0x1234567890AbcdEF1234567890aBcdef12345678',
       chainId: 'eip155:43114',
       ...(useRouter
-        ? { routerAddress: contractsMock.Avalanche.remoteAccountRouter }
+        ? { routerFactory: contractsMock.Avalanche.remoteAccountFactory }
         : {}),
     } as const;
 

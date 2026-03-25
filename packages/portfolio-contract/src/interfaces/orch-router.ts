@@ -84,17 +84,6 @@ export type RemoteAccountExecuteInstruction = AbiParameterToPrimitiveType<{
   components: typeof RemoteAccountExecuteInstructionComponents;
 }>;
 
-export const updateOwnerInstructionComponents = [
-  {
-    name: 'newOwner',
-    type: 'address',
-  },
-] as const satisfies AbiParameter[];
-export type UpdateOwnerInstruction = AbiParameterToPrimitiveType<{
-  type: 'tuple';
-  components: typeof updateOwnerInstructionComponents;
-}>;
-
 /**
  * ABI inputs for encoding RouterPayload with encodeAbiParameters.
  */
@@ -113,15 +102,6 @@ export const processRemoteAccountExecuteInstructionInputs = [
     name: 'instruction',
     type: 'tuple',
     components: RemoteAccountExecuteInstructionComponents,
-  },
-] as const satisfies AbiParameter[];
-
-export const processUpdateOwnerInstructionInputs = [
-  ...routerProcessSharedInputComponents,
-  {
-    name: 'instruction',
-    type: 'tuple',
-    components: updateOwnerInstructionComponents,
   },
 ] as const satisfies AbiParameter[];
 
@@ -166,13 +146,6 @@ export const remoteAccountAxelarRouterABI = [
     type: 'function',
     name: 'processRemoteAccountExecuteInstruction',
     inputs: processRemoteAccountExecuteInstructionInputs,
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    name: 'processUpdateOwnerInstruction',
-    inputs: processUpdateOwnerInstructionInputs,
     outputs: [],
     stateMutability: 'nonpayable',
   },
