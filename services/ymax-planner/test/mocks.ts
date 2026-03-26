@@ -21,7 +21,6 @@ import {
 } from 'viem';
 import type { CaipChainId } from '@agoric/orchestration';
 import type { EvmAddress } from '@agoric/fast-usdc/src/types.ts';
-import type { CosmosRestClient } from '../src/cosmos-rest-client.ts';
 import type { Powers as EnginePowers } from '../src/engine.ts';
 import { makeGasEstimator } from '../src/gas-estimation.ts';
 import type {
@@ -104,7 +103,6 @@ export const createMockEnginePowers = (): EnginePowers => ({
   spectrumBlockchain: createMockSpectrumBlockchain({}),
   spectrumChainIds: {},
   evmTokenAddresses: {},
-  cosmosRest: {} as any,
   network: TEST_NETWORK,
   signingSmartWalletKit: {} as any,
   walletStore: {} as any,
@@ -548,7 +546,6 @@ export const createMockPendingTxOpts = (
     events,
   });
   return {
-    cosmosRest: {} as unknown as CosmosRestClient,
     evmProviders,
     retryProviders,
     fetch: async () => ({ ok: true, json: async () => ({}) }) as Response,

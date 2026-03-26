@@ -29,7 +29,7 @@ import { arrayIsLike } from '@agoric/internal/tools/ava-assertions.js';
 import { Far } from '@endo/pass-style';
 import PROD_NETWORK from '@aglocal/portfolio-contract/tools/network/prod-network.ts';
 import type { EvmAddress } from '@agoric/fast-usdc';
-import { CosmosRestClient, USDN } from '../src/cosmos-rest-client.ts';
+import { USDN } from '../src/cosmos-rest-client.ts';
 import {
   getCurrentBalances,
   getNonDustBalances,
@@ -76,7 +76,6 @@ const handleDeposit = async (
   feeTokenBrand: Brand<'nat'>,
   powers: {
     readPublished: VstorageKit<PortfolioPublishedPathTypes>['readPublished'];
-    cosmosRest?: CosmosRestClient;
     gasEstimator: GasEstimator;
     spectrumBlockchain?: SpectrumBlockchainSdk;
     spectrumChainIds?: Partial<Record<SupportedChain, string>>;
@@ -103,7 +102,6 @@ const handleDeposit = async (
     evmProviders: createMockProviderSets({
       balances: powers.balances || {},
     }).evmProviders,
-    cosmosRest: powers.cosmosRest || ({} as unknown as CosmosRestClient),
     ...powers,
   });
   const plan = await planDepositToAllocations({
@@ -131,17 +129,10 @@ test('getNonDustBalances filters balances at or below the dust epsilon', async t
     },
   } as any;
 
-  const mockCosmosRestClient = {
-    async getAccountBalance() {
-      throw new Error('unexpected Cosmos balance request');
-    },
-  } as unknown as CosmosRestClient;
-
   const compoundBaseAddress =
     '0xaf88d065e77c8cC2239327C5EDb3A432268e5832' as EvmAddress;
   const compoundBaseBalance = 150n;
   const balances = await getNonDustBalances(status, depositBrand, {
-    cosmosRest: mockCosmosRestClient,
     spectrumBlockchain: createMockSpectrumBlockchain({}),
     spectrumChainIds: {},
     usdcTokensByChain: {},
@@ -172,17 +163,7 @@ test('getNonDustBalances retains noble balances above the dust epsilon', async t
     },
   } as any;
 
-  const mockCosmosRestClient = {
-    async getAccountBalance(chainName: string, addr: string, denom: string) {
-      t.is(chainName, 'noble');
-      t.is(denom, 'uusdn');
-      t.truthy(addr);
-      return { denom, amount: '101' };
-    },
-  } as unknown as CosmosRestClient;
-
   const balances = await getNonDustBalances(status, depositBrand, {
-    cosmosRest: mockCosmosRestClient,
     spectrumBlockchain: createMockSpectrumBlockchain({ usdn: 101 }),
     spectrumChainIds: { noble: 'noble-1' },
     usdcTokensByChain: { noble: 'uusdc' },
@@ -255,7 +236,6 @@ test('handleDeposit works with mocked dependencies', async t => {
     usdcTokensByChain: {
       noble: 'uusdc',
     },
-    cosmosRest: {} as unknown as CosmosRestClient,
     gasEstimator: mockGasEstimator,
     balances: {
       [aaveArbitrumAddress]: initialBalances.Aave_Arbitrum,
@@ -391,7 +371,6 @@ test('handleDeposit handles different position types correctly', async t => {
       usdcTokensByChain: {
         noble: 'uusdc',
       },
-      cosmosRest: {} as unknown as CosmosRestClient,
       gasEstimator: mockGasEstimator,
       balances: {
         [aaveAvalancheAddress]: 150_000n,
@@ -653,7 +632,6 @@ test('getNonDustBalances works for erc4626 vaults', async t => {
     '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB49' as EvmAddress;
   const erc4626Balance = 3000n;
   const balances = await getNonDustBalances(status, depositBrand, {
-    cosmosRest: {} as unknown as CosmosRestClient,
     spectrumChainIds: {
       agoric: 'agoricdev-25',
       noble: 'grand-1',

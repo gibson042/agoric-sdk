@@ -16,7 +16,6 @@ import type {
 } from '@aglocal/portfolio-contract/src/resolver/types.ts';
 import type { KVStore } from '@agoric/internal/src/kv-store.js';
 
-import type { CosmosRestClient } from './cosmos-rest-client.ts';
 import { resolvePendingTx } from './resolver.ts';
 import { waitForBlock, type EvmRpc } from './evm-scanner.ts';
 import type {
@@ -51,7 +50,6 @@ export type GmpWatcherResult = WatcherResult & {
 export type EvmRpcProviders = Record<CaipChainId, EvmRpc>;
 
 export type EvmContext = {
-  cosmosRest: CosmosRestClient;
   usdcAddresses: UsdcAddresses['mainnet' | 'testnet'];
   // XXX eliminate evmProviders from EvmContext and use retryProviders for the
   // balance-checking path too.

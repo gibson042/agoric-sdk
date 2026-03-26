@@ -300,7 +300,6 @@ export const main = async (
     spectrumChainIds,
     evmTokenAddresses,
     spectrumBlockchain,
-    cosmosRest,
     network: PROD_NETWORK,
     signingSmartWalletKit,
     walletStore,

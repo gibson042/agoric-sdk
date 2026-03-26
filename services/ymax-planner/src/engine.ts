@@ -58,7 +58,6 @@ import type {
 } from '@agoric/portfolio-api';
 
 import type { EvmAddress } from '@agoric/fast-usdc';
-import type { CosmosRestClient } from './cosmos-rest-client.ts';
 import type { CosmosRPCClient, SubscriptionResponse } from './cosmos-rpc.ts';
 import type { Sdk as SpectrumBlockchainSdk } from './graphql/api-spectrum-blockchain/__generated/sdk.ts';
 import { logger, runWithFlowTrace } from './logger.ts';
@@ -172,12 +171,11 @@ export const makeVstorageEvent = (
 };
 
 export type Powers = {
-  evmCtx: Omit<EvmContext, 'signingSmartWalletKit' | 'fetch' | 'cosmosRest'>;
+  evmCtx: Omit<EvmContext, 'signingSmartWalletKit' | 'fetch'>;
   rpc: CosmosRPCClient;
   spectrumBlockchain: SpectrumBlockchainSdk;
   spectrumChainIds: Partial<Record<SupportedChain, string>>;
   evmTokenAddresses: Partial<Record<InstrumentId, EvmAddress>>;
-  cosmosRest: CosmosRestClient;
   network: NetworkSpec;
   signingSmartWalletKit: SigningSmartWalletKit;
   walletStore: ReturnType<typeof reflectWalletStore>;
@@ -193,7 +191,6 @@ export type Powers = {
 
 export type ProcessPortfolioPowers = Pick<
   Powers,
-  | 'cosmosRest'
   | 'network'
   | 'spectrumBlockchain'
   | 'spectrumChainIds'
@@ -244,7 +241,6 @@ export const processPortfolioEvents = async (
   memory: PortfoliosMemory,
   {
     isDryRun,
-    cosmosRest,
     depositBrand,
     feeBrand,
     gasEstimator,
@@ -279,7 +275,6 @@ export const processPortfolioEvents = async (
     portfolioKeyForDepositAddr.set(addr, key);
   };
   const balanceQueryPowers: BalanceQueryPowers = {
-    cosmosRest,
     spectrumBlockchain,
     spectrumChainIds,
     evmTokenAddresses,
@@ -677,7 +672,7 @@ export const startEngine = async (
     feeBrandName: string;
   },
 ) => {
-  const { evmCtx, cosmosRest, rpc, signingSmartWalletKit } = powers;
+  const { evmCtx, rpc, signingSmartWalletKit } = powers;
   const vstoragePathPrefixes = makeVstoragePathPrefixes(contractInstance);
   const { portfoliosPathPrefix, pendingTxPathPrefix } = vstoragePathPrefixes;
   await null;
@@ -782,7 +777,6 @@ export const startEngine = async (
 
   const txPowers: HandlePendingTxOpts = Object.freeze({
     ...evmCtx,
-    cosmosRest,
     fetch,
     log: console.warn.bind(console),
     error: console.error.bind(console),

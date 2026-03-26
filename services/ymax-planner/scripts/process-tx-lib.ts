@@ -25,7 +25,6 @@ import {
 } from '@aglocal/portfolio-contract/src/resolver/constants.js';
 
 import { loadConfig } from '../src/config.ts';
-import { CosmosRestClient } from '../src/cosmos-rest-client.ts';
 import { CosmosRPCClient } from '../src/cosmos-rpc.ts';
 import { createEVMContext, prepareAbortController } from '../src/support.ts';
 import { makeEvmRpc } from '../src/evm-scanner.ts';
@@ -97,12 +96,6 @@ export const processTx = async (
     heartbeats: generateInterval(6000),
   });
   await rpc.opened();
-
-  const cosmosRest = new CosmosRestClient(simplePowers, {
-    clusterName,
-    timeout: config.cosmosRest.timeout,
-    retries: config.cosmosRest.retries,
-  });
 
   const walletUtils = await makeSmartWalletKit(simplePowers, networkConfig);
   const signingSmartWalletKit = await makeSigningSmartWalletKit(
@@ -191,7 +184,6 @@ export const processTx = async (
       const txPowers: HandlePendingTxOpts = Object.freeze({
         ...evmCtx,
         retryProviders,
-        cosmosRest,
         fetch,
         setTimeout,
         kvStore,

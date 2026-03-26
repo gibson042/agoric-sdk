@@ -24,7 +24,6 @@ import type {
 import { ACCOUNT_DUST_EPSILON, isInstrumentId } from '@agoric/portfolio-api';
 
 import type { EvmAddress } from '@agoric/fast-usdc';
-import type { CosmosRestClient } from './cosmos-rest-client.js';
 import { getErc20Balances } from './evm-utils.ts';
 import type {
   ChainAddressTokenBalance,
@@ -62,7 +61,6 @@ const amountFromSpectrumAccountBalance = (
     : AmountMath.make(brand, scale6(Number(balance)));
 
 export type BalanceQueryPowers = {
-  cosmosRest: CosmosRestClient;
   spectrumBlockchain: SpectrumBlockchainSdk;
   spectrumChainIds: Partial<Record<SupportedChain, string>>;
   evmTokenAddresses: Partial<
