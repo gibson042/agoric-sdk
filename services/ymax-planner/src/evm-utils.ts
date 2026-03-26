@@ -95,7 +95,10 @@ export const ERC20_BALANCE_ABI = [
   },
 ] as const;
 
-// https://github.com/beefyfinance/beefy-contracts/blob/master/contracts/BIFI/vaults/BeefyVaultV7.sol
+/**
+ * Minimal ABI for reading Beefy balances.
+ * @see {@link https://github.com/beefyfinance/beefy-contracts/blob/master/contracts/BIFI/vaults/BeefyVaultV7.sol}
+ */
 const BEEFY_VAULT_ABI = [
   ...ERC20_BALANCE_ABI,
   {
@@ -107,7 +110,10 @@ const BEEFY_VAULT_ABI = [
   },
 ] as const;
 
-// https://ethereum.org/developers/docs/standards/tokens/erc-4626#methods
+/**
+ * Minimal ABI for reading ERC-4626 balances.
+ * @see {@link https://ethereum.org/developers/docs/standards/tokens/erc-4626#methods}
+ */
 const ERC4626_VAULT_ABI = [
   ...ERC20_BALANCE_ABI,
   {
