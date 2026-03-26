@@ -75,11 +75,13 @@ type BalanceQueryDescriptor = {
   place: AssetPlaceRef;
   chainName: SupportedChain;
   address: string;
-  token: string;
+  asset: string;
 };
 
-type AlchemyBalanceQuery = BalanceQueryDescriptor & {
+type AlchemyBalanceQuery = {
   place: InterChainAccountRef | PoolKey;
+  chainName: SupportedChain;
+  address: string;
   token: PoolPlaceInfo['protocol'] | 'USDC';
 };
 
@@ -98,7 +100,7 @@ const makeSpectrumAccountQuery = (
       ? lookupValueForKey(powers.usdcTokensByChain, chainName)
       : // "USDN" -> "usdn"
         asset.toLowerCase();
-  return { ...desc, chain: chainId, address, token };
+  return { chain: chainId, address, token };
 };
 
 export const getCurrentBalances = async (
@@ -111,8 +113,8 @@ export const getCurrentBalances = async (
   const addressInfo = new Map<SupportedChain, Caip10Record>();
   /** Queries for Alchemy (EVM account & position balances) */
   const alchemyQueries = [] as AlchemyBalanceQuery[];
-  /** Queries for the Spectrum Blockchain API (non-EVM account balances) */
-  const spectrumAccountQueries: Array<SpectrumAccountQuery> = [];
+  /** Descriptors for Spectrum Blockchain API Queries (non-EVM account balances) */
+  const spectrumAccountQueryDescriptors: Array<BalanceQueryDescriptor> = [];
   const balances = new Map<AssetPlaceRef, NatAmount | undefined>();
   const errors = [] as Error[];
 
@@ -134,11 +136,12 @@ export const getCurrentBalances = async (
           token: 'USDC',
         });
       } else {
-        const query = makeSpectrumAccountQuery(
-          { place, chainName, address, asset: 'USDC' },
-          powers,
-        );
-        spectrumAccountQueries.push(query);
+        spectrumAccountQueryDescriptors.push({
+          place,
+          chainName,
+          address,
+          asset: 'USDC',
+        });
       }
     } catch (cause) {
       const err = Error(
@@ -164,16 +167,21 @@ export const getCurrentBalances = async (
       if (namespace === 'eip155') {
         alchemyQueries.push({ place, chainName, address, token: protocol });
       } else {
-        const query = makeSpectrumAccountQuery(
-          { place, chainName, address, asset: protocol },
-          powers,
-        );
-        spectrumAccountQueries.push(query);
+        spectrumAccountQueryDescriptors.push({
+          place,
+          chainName,
+          address,
+          asset: protocol,
+        });
       }
     } catch (err) {
       errors.push(err);
     }
   }
+
+  const spectrumAccountQueries = spectrumAccountQueryDescriptors.map(desc =>
+    makeSpectrumAccountQuery(desc, powers),
+  );
 
   const [alchemyResult, spectrumAccountResult] = await Promise.allSettled([
     alchemyQueries.length
@@ -217,7 +225,7 @@ export const getCurrentBalances = async (
   }
 
   for (let i = 0; i < spectrumAccountQueries.length; i += 1) {
-    const { place, token: asset } = spectrumAccountQueries[i];
+    const { place, asset } = spectrumAccountQueryDescriptors[i];
     const result = spectrumAccountBalances[i];
     if (result.error) errors.push(Error(result.error));
     const balanceAmount = amountFromSpectrumAccountBalance(
