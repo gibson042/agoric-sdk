@@ -9,10 +9,9 @@ import type {
   TxId,
 } from '@aglocal/portfolio-contract/src/resolver/types.ts';
 import { createMockPendingTxData } from '@aglocal/portfolio-contract/tools/mocks.ts';
-import {
-  handlePendingTx,
-  type EvmRpcProviders,
-} from '../src/pending-tx-manager.ts';
+import type { CaipChainId } from '@agoric/orchestration';
+import { handlePendingTx } from '../src/pending-tx-manager.ts';
+import type { EvmRpc } from '../src/evm-scanner.ts';
 import {
   processPendingTxEvents,
   processInitialPendingTransactions,
@@ -888,7 +887,7 @@ const makeFailedTxTestContext = ({
   const ctxWithFetch = harden({
     ...opts,
     evmProviders: newEvmProviders,
-    retryProviders: newEvmProviders as unknown as EvmRpcProviders,
+    retryProviders: newEvmProviders as unknown as Record<CaipChainId, EvmRpc>,
     fetch: makeFetchMock({ failedTxHash }),
   });
 

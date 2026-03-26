@@ -24,6 +24,7 @@ import type {
 import { ACCOUNT_DUST_EPSILON, isInstrumentId } from '@agoric/portfolio-api';
 
 import type { EvmAddress } from '@agoric/fast-usdc';
+import type { WebSocketProvider } from 'ethers';
 import { getErc20Balances } from './evm-utils.ts';
 import type {
   ChainAddressTokenBalance,
@@ -31,7 +32,6 @@ import type {
 } from './graphql/api-spectrum-blockchain/__generated/graphql.ts';
 import type { Sdk as SpectrumBlockchainSdk } from './graphql/api-spectrum-blockchain/__generated/sdk.ts';
 import type { EvmChain } from './pending-tx-manager.ts';
-import type { EvmProviders } from './support.ts';
 import { UserInputError } from './support.ts';
 import { getOwn, lookupValueForKey } from './utils.js';
 
@@ -67,7 +67,7 @@ export type BalanceQueryPowers = {
     Record<InterChainAccountRef | PoolKey, EvmAddress>
   >;
   usdcTokensByChain: Partial<Record<SupportedChain, string>>;
-  evmProviders: EvmProviders;
+  evmProviders: Record<CaipChainId, WebSocketProvider>;
   chainNameToChainIdMap: Partial<Record<EvmChain, CaipChainId>>;
 };
 

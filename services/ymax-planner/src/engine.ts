@@ -58,6 +58,7 @@ import type {
 } from '@agoric/portfolio-api';
 
 import type { EvmAddress } from '@agoric/fast-usdc';
+import type { WebSocketProvider } from 'ethers';
 import type { CosmosRPCClient, SubscriptionResponse } from './cosmos-rpc.ts';
 import type { Sdk as SpectrumBlockchainSdk } from './graphql/api-spectrum-blockchain/__generated/sdk.ts';
 import { logger, runWithFlowTrace } from './logger.ts';
@@ -75,7 +76,6 @@ import {
   planWithdrawFromAllocations,
 } from './plan-deposit.ts';
 import { UserInputError } from './support.ts';
-import type { EvmProviders } from './support.ts';
 import {
   encodedKeyToPath,
   pathToEncodedKey,
@@ -209,7 +209,7 @@ export type ProcessPortfolioPowers = Pick<
   vstoragePathPrefixes: {
     portfoliosPathPrefix: string;
   };
-  evmProviders: EvmProviders;
+  evmProviders: Record<CaipChainId, WebSocketProvider>;
 };
 
 export type PortfoliosMemory = {

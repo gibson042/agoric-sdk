@@ -4,11 +4,10 @@ import { objectMap } from '@endo/patterns';
 import type { WebSocketProvider } from 'ethers';
 import { TxType } from '@aglocal/portfolio-contract/src/resolver/constants.js';
 import type { PendingTx } from '@aglocal/portfolio-contract/src/resolver/types.ts';
+import type { CaipChainId } from '@agoric/orchestration';
 import { createMockPendingTxOpts } from './mocks.ts';
-import {
-  handlePendingTx,
-  type EvmRpcProviders,
-} from '../src/pending-tx-manager.ts';
+import { handlePendingTx } from '../src/pending-tx-manager.ts';
+import type { EvmRpc } from '../src/evm-scanner.ts';
 import {
   SMART_WALLET_CREATED_SIGNATURE,
   parseSmartWalletCreatedLog,
@@ -359,7 +358,7 @@ test('find a failed tx in MAKE_ACCOUNT lookback mode via trace_filter', async t 
   const ctxWithFetch = harden({
     ...opts,
     evmProviders: newEvmProviders,
-    retryProviders: newEvmProviders as EvmRpcProviders,
+    retryProviders: newEvmProviders as Record<CaipChainId, EvmRpc>,
     fetch: async () => ({}) as Response,
   });
 

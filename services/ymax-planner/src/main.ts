@@ -22,6 +22,7 @@ import {
 } from '@agoric/client-utils';
 import type { BaseAccountSDKType } from '@agoric/cosmic-proto/cosmos/auth/v1beta1/auth.js';
 import type { SigningSmartWalletKit } from '@agoric/client-utils';
+import type { CaipChainId } from '@agoric/orchestration';
 import {
   deeplyFulfilledObject,
   objectMap,
@@ -49,11 +50,10 @@ import {
   spectrumChainIdsByCluster,
 } from './support.ts';
 import type { MakeAbortController } from './support.ts';
-import { makeEvmRpc } from './evm-scanner.ts';
+import { makeEvmRpc, type EvmRpc } from './evm-scanner.ts';
 import { makeGasEstimator } from './gas-estimation.ts';
 import { makeSQLiteKeyValueStore } from './kv-store.ts';
 import { YdsNotifier } from './yds-notifier.ts';
-import type { EvmRpcProviders } from './pending-tx-manager.ts';
 import { getPoolTokenAddresses } from './evm-utils.ts';
 
 const { fromEntries, entries } = Object;
@@ -284,7 +284,7 @@ export const main = async (
       caip,
       makeEvmRpc(provider, setTimeout),
     ]),
-  ) as EvmRpcProviders;
+  ) as Record<CaipChainId, EvmRpc>;
 
   const powers = {
     evmCtx: {

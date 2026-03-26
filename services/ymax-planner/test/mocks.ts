@@ -23,15 +23,12 @@ import type { CaipChainId } from '@agoric/orchestration';
 import type { EvmAddress } from '@agoric/fast-usdc/src/types.ts';
 import type { Powers as EnginePowers } from '../src/engine.ts';
 import { makeGasEstimator } from '../src/gas-estimation.ts';
-import type {
-  HandlePendingTxOpts,
-  EvmRpcProviders,
-} from '../src/pending-tx-manager.ts';
+import type { HandlePendingTxOpts } from '../src/pending-tx-manager.ts';
 import { prepareAbortController } from '../src/support.ts';
 import type { YdsNotifier } from '../src/yds-notifier.ts';
 import type { Sdk as SpectrumBlockchainSdk } from '../src/graphql/api-spectrum-blockchain/__generated/sdk.ts';
-import type { makeEvmRpc } from '../src/evm-scanner.ts';
 import { ERC20_BALANCE_ABI } from '../src/evm-utils.ts';
+import type { makeEvmRpc, EvmRpc } from '../src/evm-scanner.ts';
 
 const PENDING_TX_PATH_PREFIX = 'published.ymax1';
 
@@ -387,7 +384,7 @@ export const createMockProviderSets = ({
     'eip155:43113',
   ];
   const evmProviders = {} as Record<CaipChainId, WebSocketProvider>;
-  const retryProviders = {} as EvmRpcProviders;
+  const retryProviders = {} as Record<CaipChainId, EvmRpc>;
   for (const chainId of chainIds) {
     const provider = createMockProvider(latestBlock, events, balances);
     evmProviders[chainId] = provider;

@@ -267,8 +267,6 @@ type CreateContextParams = {
   alchemyApiKey: string;
 };
 
-export type EvmProviders = Record<CaipChainId, WebSocketProvider>;
-
 export const createEVMContext = async ({
   clusterName,
   alchemyApiKey,
@@ -284,7 +282,7 @@ export const createEVMContext = async ({
       caip,
       new WebSocketProvider(wsUrl),
     ]),
-  ) as EvmProviders;
+  ) as Record<CaipChainId, WebSocketProvider>;
 
   return {
     evmProviders,

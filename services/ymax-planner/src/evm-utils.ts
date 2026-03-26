@@ -16,7 +16,6 @@ import { fromUniqueEntries, partialMap, typedEntries } from '@agoric/internal';
 import type { axelarConfig } from '@aglocal/portfolio-deploy/src/axelar-configs.js';
 import type { EVMContractAddresses } from '@aglocal/portfolio-contract/src/portfolio.contract.ts';
 import type { EvmChain } from './pending-tx-manager.ts';
-import type { EvmProviders } from './support.ts';
 
 /**
  * Build a unified map of pool/instrument IDs to their on-chain token contract
@@ -211,7 +210,7 @@ export type EvmBalancePowers = {
     Record<InterChainAccountRef | PoolKey, EvmAddress>
   >;
   chainNameToChainIdMap: Partial<Record<EvmChain, CaipChainId>>;
-  evmProviders: EvmProviders;
+  evmProviders: Record<CaipChainId, WebSocketProvider>;
 };
 
 /**
