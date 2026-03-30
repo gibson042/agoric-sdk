@@ -113,8 +113,8 @@ export const getCurrentBalances = async (
   const addressInfo = new Map<SupportedChain, Caip10Record>();
   /** Queries for Alchemy (EVM account & position balances) */
   const alchemyQueries = [] as AlchemyBalanceQuery[];
-  /** Descriptors for Spectrum Blockchain API Queries (non-EVM account balances) */
-  const spectrumAccountQueryDescriptors: Array<BalanceQueryDescriptor> = [];
+  /** Queries for the Spectrum Blockchain API (non-EVM account balances) */
+  const spectrumAccountQueries: Array<BalanceQueryDescriptor> = [];
   const balances = new Map<AssetPlaceRef, NatAmount | undefined>();
   const errors = [] as Error[];
 
@@ -136,7 +136,7 @@ export const getCurrentBalances = async (
           token: 'USDC',
         });
       } else {
-        spectrumAccountQueryDescriptors.push({
+        spectrumAccountQueries.push({
           place,
           chainName,
           address,
@@ -167,7 +167,7 @@ export const getCurrentBalances = async (
       if (namespace === 'eip155') {
         alchemyQueries.push({ place, chainName, address, token: protocol });
       } else {
-        spectrumAccountQueryDescriptors.push({
+        spectrumAccountQueries.push({
           place,
           chainName,
           address,
@@ -179,16 +179,16 @@ export const getCurrentBalances = async (
     }
   }
 
-  const spectrumAccountQueries = spectrumAccountQueryDescriptors.map(desc =>
-    makeSpectrumAccountQuery(desc, powers),
-  );
-
   const [alchemyResult, spectrumAccountResult] = await Promise.allSettled([
     alchemyQueries.length
       ? getErc20Balances(alchemyQueries, powers)
       : { balances: [] },
     spectrumAccountQueries.length
-      ? spectrumBlockchain.getBalances({ accounts: spectrumAccountQueries })
+      ? spectrumBlockchain.getBalances({
+          accounts: spectrumAccountQueries.map(q =>
+            makeSpectrumAccountQuery(q, powers),
+          ),
+        })
       : { balances: [] },
   ]);
 
@@ -225,7 +225,7 @@ export const getCurrentBalances = async (
   }
 
   for (let i = 0; i < spectrumAccountQueries.length; i += 1) {
-    const { place, asset } = spectrumAccountQueryDescriptors[i];
+    const { place, asset } = spectrumAccountQueries[i];
     const result = spectrumAccountBalances[i];
     if (result.error) errors.push(Error(result.error));
     const balanceAmount = amountFromSpectrumAccountBalance(
