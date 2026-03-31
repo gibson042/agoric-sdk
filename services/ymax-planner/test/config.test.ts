@@ -73,7 +73,6 @@ test('loadConfig accepts valid configuration', async t => {
   t.is(config.mnemonic, 'test mnemonic phrase');
   t.is(config.alchemyApiKey, 'test1234');
   t.is(config.cosmosRest.agoricNetworkSpec, 'devnet,myChainId');
-  t.is(config.cosmosRest.agoricNetSubdomain, 'devnet');
   t.is(config.cosmosRest.timeout, 10000);
   t.is(config.cosmosRest.retries, 5);
 });
@@ -86,7 +85,6 @@ test('loadConfig uses default values when optional fields are missing', async t 
   t.is(config.mnemonic, 'test mnemonic phrase');
   t.is(config.alchemyApiKey, 'test1234');
   t.is(config.cosmosRest.agoricNetworkSpec, 'local');
-  t.is(config.cosmosRest.agoricNetSubdomain, 'local');
   t.is(config.cosmosRest.timeout, 10000);
   t.is(config.cosmosRest.retries, 3);
 });
@@ -133,11 +131,6 @@ test('loadConfig defaults CLUSTER from AGORIC_NET', async t => {
         t.is(
           config.cosmosRest.agoricNetworkSpec,
           agoricNetworkSpec,
-          `AGORIC_NET=${agoricNetworkSpec}`,
-        );
-        t.is(
-          config.cosmosRest.agoricNetSubdomain,
-          agoricNetSubdomain,
           `AGORIC_NET=${agoricNetworkSpec}`,
         );
         t.is(
