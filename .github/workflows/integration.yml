@@ -221,7 +221,7 @@ jobs:
     needs: pre_check
     if: needs.pre_check.outputs.should_run == 'true'
     runs-on: 'depot-ubuntu-22.04-16'
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - name: update job environment
         run: |
@@ -342,7 +342,10 @@ jobs:
           echo "LOADGEN_PATH=$GITHUB_WORKSPACE/${{ env.LOADGEN_REPO_NAME }}" >> "$GITHUB_ENV"
 
       - name: build proposals tests
-        run: yarn build
+        # Skip build:sdk because the "docker build (sdk)" step above already
+        # produced ghcr.io/agoric/agoric-sdk:unreleased. Running `yarn build`
+        # would rebuild it redundantly via build:sdk (~4-5 min with layer cache).
+        run: yarn build:submissions && yarn build:synthetic-chain
         working-directory: agoric-sdk/a3p-integration
 
       - name: run proposals tests
