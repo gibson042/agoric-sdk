@@ -1,4 +1,4 @@
-/* eslint-env node */
+/* global process */
 
 import fs from 'node:fs';
 import pathlib from 'node:path';

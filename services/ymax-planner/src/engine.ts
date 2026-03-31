@@ -1,5 +1,5 @@
 /// <reference types="ses" />
-/* eslint-env node */
+/* global process */
 
 import type { InspectOptions } from 'node:util';
 import { inspect } from 'node:util';

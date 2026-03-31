@@ -1,4 +1,4 @@
-/* eslint-env node */
+/* global process */
 
 import timersPromises from 'node:timers/promises';
 import { inspect } from 'node:util';
