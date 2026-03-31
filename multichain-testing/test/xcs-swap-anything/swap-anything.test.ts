@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 import anyTest from '@endo/ses-ava/prepare-endo.js';
 import type { TestFn } from 'ava';
 import { AmountMath } from '@agoric/ertp';

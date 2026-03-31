@@ -1,3 +1,4 @@
+/* global globalThis */
 import type { ExecutionContext } from 'ava';
 import { dirname, join } from 'node:path';
 import { execa } from 'execa';
@@ -45,14 +46,15 @@ export const chainConfig: Record<string, { expectedAddressPrefix: string }> = {
 const makeKeyring = async (
   e2eTools: Pick<E2ETools, 'addKey' | 'deleteKey'>,
 ) => {
-  let _keys = ['user1'];
+  let testKeys = ['user1'];
   const setupTestKeys = async (
-    keys = ['user1'],
+    keys: string[] = ['user1'],
     mnemonics?: (string | undefined)[],
   ) => {
-    _keys = keys;
+    testKeys = keys;
     const wallets: Record<string, string> = {};
-    for (const i in keys) {
+    await null;
+    for (let i = 0; i < keys.length; i += 1) {
       const res = await e2eTools.addKey(
         keys[i],
         mnemonics?.[i] || generateMnemonic(),
@@ -65,7 +67,7 @@ const makeKeyring = async (
 
   const deleteTestKeys = (keys: string[] = []) =>
     Promise.allSettled(
-      Array.from(new Set([...keys, ..._keys])).map(key =>
+      Array.from(new Set([...keys, ...testKeys])).map(key =>
         e2eTools.deleteKey(key).catch(),
       ),
     ).catch();
@@ -81,6 +83,7 @@ export const commonSetup = async (
   } = {},
 ) => {
   let useChain: MultichainRegistry['useChain'];
+  await null;
   try {
     const registry = await setupRegistry({
       config,

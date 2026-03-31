@@ -2,7 +2,7 @@
 /**
  * @file marshal tools for vstorage clients
  *
- * TODO: integrate back into @agoric/rpc
+ * TODO: integrate back into \@agoric/rpc
  *  - fixes: calls to makeClientMarshaller share static mutable state
  *    https://github.com/Agoric/ui-kit/issues/73
  *  - fits in this plain .js project
@@ -57,7 +57,6 @@ const makeTranslationTable = (makeSlot, makeVal) => {
     return val;
   };
 
-  // eslint-disable-next-line no-undef
   return harden({ convertValToSlot, convertSlotToVal });
 };
 

@@ -78,7 +78,7 @@ const fundRemote = async (
   );
   const { balances } = await retryUntilCondition(
     () => queryClient.queryBalances(acctAddr),
-    ({ balances }) => !!balances.find(x => x.denom.startsWith('ibc/')),
+    result => !!result.balances.find(x => x.denom.startsWith('ibc/')),
     `${acctAddr} received bld from agoric`,
   );
 
@@ -127,6 +127,7 @@ const setupSourceWallet = async (
 
 type QueryRes = { total_count: string; txs: object[] };
 const queryPackets = async (binaries: Record<string, Agd>) => {
+  await null;
   const results: Record<string, { recvs: QueryRes; acks: QueryRes }> = {};
   for (const [name, chaind] of Object.entries(binaries)) {
     const recvs = await chaind.queryTxsByEvents(txEventQuery.msgReceivePacket);

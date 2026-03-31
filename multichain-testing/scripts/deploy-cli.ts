@@ -42,6 +42,7 @@ async function main() {
     process.exit(1);
   }
 
+  await null;
   try {
     const agdTools = await makeAgdTools(console.log, childProcess);
     const deployBuilder = makeDeployBuilder(agdTools, fse.readJSON, execa);

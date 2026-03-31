@@ -102,7 +102,7 @@ const sendAnywhereScenario = test.macro({
 
       const { balances } = await retryUntilCondition(
         () => queryClient.queryBalances(receiver.value),
-        ({ balances }) => 'amount' in balances[0],
+        result => 'amount' in result.balances[0],
         `${receiver.value} ${amount.value} balance available from send-anywhere`,
       );
 

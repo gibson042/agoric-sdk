@@ -1,4 +1,5 @@
 // @ts-check
+/* eslint-disable jsdoc/check-param-names */
 /* global harden */
 import {
   LOCAL_CONFIG,
@@ -50,8 +51,10 @@ const PROVISIONING_POOL_ADDR = 'agoric1megzytg65cyrgzs6fvzxgrcqvwwl7ugpt62346';
 const BLD = '000000ubld';
 
 export const txAbbr = tx => {
+  // eslint-disable-next-line camelcase
   const { txhash, code, height, gas_used } = tx;
 
+  // eslint-disable-next-line camelcase
   return { txhash, code, height, gas_used };
 };
 
@@ -204,7 +207,8 @@ const provisionSmartWalletAndMakeDriver = async (
    */
   const getCosmosBalances = (addr = address) =>
     lcd.getJSON(`/cosmos/bank/v1beta1/balances/${addr}`);
-  progress(`${address} before whale`, await getCosmosBalances());
+  const initialCosmosBalance = await getCosmosBalances();
+  progress(`${address} before whale`, initialCosmosBalance);
 
   // TODO: skip this query if balances is {}
   const vbankEntries = await q.queryData('published.agoricNames.vbankAsset');
@@ -252,9 +256,9 @@ const provisionSmartWalletAndMakeDriver = async (
 
   const afterWhale = await retryUntilCondition(
     () => getCosmosBalances(),
-    ({ balances }) => {
+    ({ balances: currentBalances }) => {
       // XXX ensures there is at least some faucet but doesn't check that the balance went up
-      return balances.length >= balanceEntries.length;
+      return currentBalances.length >= balanceEntries.length;
     },
     `${address} received tokens from whale`,
   );
@@ -591,7 +595,6 @@ export const makeE2ETools = async (
    *   title?: string;
    *   description?: string;
    *   config?: unknown;
-   * } & {
    *   behavior?: Function;
    * }} info
    */

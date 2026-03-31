@@ -35,6 +35,11 @@ const LP_DEPOSIT_AMOUNT = 8_000n * 10n ** 6n;
 
 type QueryClient = ReturnType<typeof makeQueryClient>;
 
+const toAmt = (
+  brand: Brand<'nat'>,
+  balance: QueryBalanceResponseSDKType['balance'],
+) => make(brand, BigInt(balance?.amount || 0));
+
 const fuAssetInfo = (assetInfo: string): string => {
   const denomPairs: [Denom, DenomDetail][] = JSON.parse(assetInfo);
   const matchingPair = denomPairs.find(
@@ -130,6 +135,7 @@ const makeTestContext = async (t: ExecutionContext) => {
   };
 
   const acceptInvitations = async () => {
+    await null;
     // ensure we have an unused (or used) oracle invitation in each purse
     for (const op of txOracles) {
       const { detail, usedInvitation } = await op.checkInvitation();
@@ -186,7 +192,7 @@ const makeTestContext = async (t: ExecutionContext) => {
 
     await common.retryUntilCondition(
       () => queryClient.queryBalance(wallets.lp, 'ufastlp'),
-      ({ balance }) => isGTE(toAmt(FastLP, balance), want.PoolShare),
+      result => isGTE(toAmt(FastLP, result.balance), want.PoolShare),
       'lp has pool shares',
       { log: trace },
     );
@@ -300,11 +306,6 @@ test.after(async t => {
   const { deleteTestKeys } = t.context;
   deleteTestKeys(accounts);
 });
-
-const toAmt = (
-  brand: Brand<'nat'>,
-  balance: QueryBalanceResponseSDKType['balance'],
-) => make(brand, BigInt(balance?.amount || 0));
 
 const advanceAndSettleScenario = test.macro({
   title: (_, mintAmt: bigint, eudChain: string) =>
@@ -539,9 +540,8 @@ test.serial('lp withdraws', async t => {
     vstorageClient,
     wallets,
   } = t.context;
-  const queryClient = makeQueryClient(
-    await useChain('agoric').getRestEndpoint(),
-  );
+  const restEndpoint = await useChain('agoric').getRestEndpoint();
+  const queryClient = makeQueryClient(restEndpoint);
   const lpDoOffer = makeDoOffer(lpUser);
   const { FastLP } = await agoricNamesQ(vstorageClient).brands('nat');
   t.log('FastLP brand', FastLP);
@@ -600,9 +600,8 @@ test.serial('lp withdraws', async t => {
 
 test.serial('distribute FastUSDC contract fees', async t => {
   const io = t.context;
-  const queryClient = makeQueryClient(
-    await io.useChain('agoric').getRestEndpoint(),
-  );
+  const restEndpoint = await io.useChain('agoric').getRestEndpoint();
+  const queryClient = makeQueryClient(restEndpoint);
 
   const opts = {
     destinationAddress: io.wallets.feeDest,
@@ -619,7 +618,7 @@ test.serial('distribute FastUSDC contract fees', async t => {
 
   const { balance } = await io.retryUntilCondition(
     () => queryClient.queryBalance(opts.destinationAddress, io.usdcDenom),
-    ({ balance }) => !!balance && BigInt(balance.amount) > 0n,
+    result => !!result.balance && BigInt(result.balance.amount) > 0n,
     `fees received at ${opts.destinationAddress}`,
   );
   t.log('fees received', balance);
@@ -735,8 +734,13 @@ test.serial('forward skipped due to invalid EUD', async t => {
   );
   t.log('settlementAccount address', settlementAccount);
 
-  const querySettlementAccountBalance = async () =>
-    (await api.queryBalance(settlementAccount, getUsdcDenom('agoric'))).balance;
+  const querySettlementAccountBalance = async () => {
+    const queryResult = await api.queryBalance(
+      settlementAccount,
+      getUsdcDenom('agoric'),
+    );
+    return queryResult.balance;
+  };
   const startingSettlementBalance = await querySettlementAccountBalance();
   t.log(
     'starting settlementAccount balance',
@@ -779,9 +783,8 @@ test.todo('test with rc2, settler-reference proposal');
 
 test.serial('sendFromSettlementAccount', async t => {
   const io = t.context;
-  const queryClient = makeQueryClient(
-    await io.useChain('agoric').getRestEndpoint(),
-  );
+  const restEndpoint = await io.useChain('agoric').getRestEndpoint();
+  const queryClient = makeQueryClient(restEndpoint);
 
   const opts = {
     destinationAddress: io.wallets.feeDest,
@@ -812,7 +815,7 @@ test.serial('sendFromSettlementAccount', async t => {
 
   const { balance } = await io.retryUntilCondition(
     () => queryClient.queryBalance(opts.destinationAddress, io.usdcDenom),
-    ({ balance }) => BigInt(balance?.amount || 0n) > prev,
+    result => BigInt(result.balance?.amount || 0n) > prev,
     `funds received at ${opts.destinationAddress}`,
   );
 
