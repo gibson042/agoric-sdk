@@ -9,18 +9,21 @@ import {
 } from '@agoric/portfolio-api/src/resolver.js';
 import { withAmountUtils } from '@agoric/zoe/tools/test-utils.js';
 import { matches, mustMatch } from '@endo/patterns';
+import { PublishedTxShape } from '../src/resolver/types.ts';
 import { makeOfferArgsShapes } from '../src/type-guards-steps.ts';
 import {
+  FlowDetailShape,
   FlowStatusShape,
   FlowStepsShape,
-  FlowDetailShape,
   makeProposalShapes,
   PoolKeyShapeExt,
   PortfolioStatusShapeExt,
   PositionStatusShape,
+  TargetAllocationShape,
+  TargetAllocationShapeExt,
   type StatusFor,
+  type TargetAllocation,
 } from '../src/type-guards.ts';
-import { PublishedTxShape } from '../src/resolver/types.ts';
 
 const usdcKit = withAmountUtils(makeIssuerKit('USDC'));
 const usdc = usdcKit.make;
@@ -575,5 +578,60 @@ test('published tx shape accepts nextTxId field', t => {
       () => mustMatch(specimen, PublishedTxShape),
       `${name} with nextTxId should match shape`,
     );
+  }
+});
+
+test('TargetAllocation to USDC expressed as @Chain', t => {
+  const passCases = harden({
+    targetAllocationWithChain: {
+      Aave_Ethereum: 5000n,
+      '@Arbitrum': 5000n,
+    },
+  } satisfies Record<string, TargetAllocation>);
+
+  const extendedPassCases = harden({
+    ...passCases,
+    targetAllocationWithFutureChain: {
+      Aave_Ethereum: 5000n,
+      '@NewChain': 5000n,
+    },
+  });
+
+  const failCases = harden({
+    invalidChainKey: {
+      Aave_Ethereum: 5000n,
+      '@UnknownChain': 5000n,
+    },
+    depositWithFromChain: {
+      Aave_Ethereum: 5000n,
+      '+Arbitrum': 5000n,
+    },
+    withdrawWithToChain: {
+      Aave_Ethereum: 5000n,
+      '-Arbitrum': 5000n,
+    },
+    localChainAccount: {
+      Aave_Ethereum: 5000n,
+      '@agoric': 5000n,
+    },
+  });
+
+  const { entries } = Object;
+  for (const [name, targetAllocation] of entries(passCases)) {
+    t.notThrows(
+      () => mustMatch(targetAllocation, TargetAllocationShape),
+      `pass: ${name}`,
+    );
+  }
+
+  for (const [name, targetAllocation] of entries(extendedPassCases)) {
+    t.notThrows(
+      () => mustMatch(targetAllocation, TargetAllocationShapeExt),
+      `extended pass: ${name}`,
+    );
+  }
+
+  for (const [name, targetAllocation] of entries(failCases)) {
+    t.false(matches(targetAllocation, TargetAllocationShape), `fail: ${name}`);
   }
 });
