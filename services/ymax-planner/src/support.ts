@@ -26,8 +26,8 @@ harden(UserInputError);
 type ROPartial<K extends string, V> = Readonly<Partial<Record<K, V>>>;
 
 /**
- * @deprecated should come from e.g. @agoric/portfolio-api/src/constants.js
- *   or @agoric/orchestration
+ * @deprecated should come from e.g. \@agoric/portfolio-api/src/constants.js
+ *   or \@agoric/orchestration
  */
 export type UsdcAddresses = {
   mainnet: Record<CaipChainId, EvmAddress>;
@@ -131,8 +131,8 @@ export const spectrumProtocols: Readonly<
  * - https://developers.circle.com/cctp/evm-smart-contracts
  * - https://developers.circle.com/stablecoins/usdc-contract-addresses
  *
- * @deprecated should come from e.g. @agoric/portfolio-api/src/constants.js
- *   or @agoric/orchestration
+ * @deprecated should come from e.g. \@agoric/portfolio-api/src/constants.js
+ *   or \@agoric/orchestration
  * @see {@link ../../../packages/orchestration/src/cctp-chain-info.js}
  */
 export const usdcAddresses: UsdcAddresses = {
@@ -185,8 +185,8 @@ export const walletOperationFallbackGasLimit = 276_809n;
  * Testnet data: https://eth.blockscout.com/ (except Avalanche),
  *   https://subnets-test.avax.network/c-chain
  *
- * @deprecated should come from e.g. @agoric/portfolio-api/src/constants.js
- *   or @agoric/orchestration
+ * @deprecated should come from e.g. \@agoric/portfolio-api/src/constants.js
+ *   or \@agoric/orchestration
  */
 const chainBlockTimesMs: Record<CaipChainId, number> = harden({
   // ========= Mainnet =========
@@ -280,8 +280,8 @@ export const getRevertConfirmationsRequired = (
 };
 
 /**
- * @deprecated should come from e.g. @agoric/portfolio-api/src/constants.js
- *   or @agoric/orchestration
+ * @deprecated should come from e.g. \@agoric/portfolio-api/src/constants.js
+ *   or \@agoric/orchestration
  */
 export const getEvmRpcMap = (
   clusterName: ClusterName,
@@ -345,7 +345,7 @@ export const createEVMContext = async ({
 
   return {
     evmProviders,
-    // XXX Remove now that @agoric/portfolio-api/src/constants.js
+    // XXX Remove now that \@agoric/portfolio-api/src/constants.js
     // defines UsdcTokenIds.
     usdcAddresses: usdcAddresses[clusterName],
   };
