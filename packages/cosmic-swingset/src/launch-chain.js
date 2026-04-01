@@ -1133,7 +1133,7 @@ export async function launchAndShareInternals({
   };
 
   // Handle actions related to ABCI block methods: BeginBlock, EndBlock, Commit
-  // https://docs.cometbft.com/v0.34/spec/abci/abci#block-execution
+  // https://docs.cometbft.com/v0.37/spec/abci/abci++_app_requirements#beginblock---delivertx---endblock
   // We also have a once-per-process-lifetime AG_COSMOS_INIT message, and split
   // Commit into two phases (see `Commit` at
   // {@link ../../../golang/cosmos/app/app.go}).

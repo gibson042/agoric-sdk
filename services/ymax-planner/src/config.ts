@@ -35,7 +35,6 @@ export interface YmaxPlannerConfig {
   readonly spectrumPoolsEndpoints: string[];
   readonly cosmosRest: {
     readonly agoricNetworkSpec: string;
-    readonly agoricNetSubdomain?: string;
     readonly timeout: number;
     readonly retries: number;
   };
@@ -187,7 +186,6 @@ export const loadConfig = async (
     spectrumPoolsEndpoints,
     cosmosRest: {
       agoricNetworkSpec,
-      agoricNetSubdomain,
       timeout: parsePositiveInteger(env, 'COSMOS_REST_TIMEOUT', timeout),
       retries: parsePositiveInteger(env, 'COSMOS_REST_RETRIES', maxRetries),
     },

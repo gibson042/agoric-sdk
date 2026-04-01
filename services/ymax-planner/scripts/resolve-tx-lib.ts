@@ -1,5 +1,5 @@
 #!/usr/bin/env -S node --import ts-blank-space/register
-/* eslint-env node */
+/* global process */
 
 import { SigningStargateClient } from '@cosmjs/stargate';
 
