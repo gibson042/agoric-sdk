@@ -27,8 +27,8 @@ import type { EvmAddress } from '@agoric/fast-usdc';
 import type { WebSocketProvider } from 'ethers';
 import { getErc20Balances } from './evm-utils.ts';
 import type {
-  ChainAddressTokenBalance,
-  ChainAddressTokenInput as SpectrumAccountQuery,
+  ChainAddressTokenBalance as SpectrumGetAddressBalanceResult,
+  ChainAddressTokenInput as SpectrumGetAddressBalanceInput,
 } from './graphql/api-spectrum-blockchain/__generated/graphql.ts';
 import type { Sdk as SpectrumBlockchainSdk } from './graphql/api-spectrum-blockchain/__generated/sdk.ts';
 import type { EvmChain } from './pending-tx-manager.ts';
@@ -54,7 +54,7 @@ const isNonemptyPositionEntry = (entry: [AssetPlaceRef, NatValue]): boolean => {
 
 const amountFromSpectrumAccountBalance = (
   brand: Brand<'nat'>,
-  balance: ChainAddressTokenBalance['balance'],
+  balance: SpectrumGetAddressBalanceResult['balance'],
 ) =>
   balance === undefined
     ? undefined
@@ -71,13 +71,6 @@ export type BalanceQueryPowers = {
   chainNameToChainIdMap: Partial<Record<EvmChain, CaipChainId>>;
 };
 
-type BalanceQueryDescriptor = {
-  place: AssetPlaceRef;
-  chainName: SupportedChain;
-  address: string;
-  asset: string;
-};
-
 type AlchemyBalanceQuery = {
   place: InterChainAccountRef | PoolKey;
   chainName: SupportedChain;
@@ -85,14 +78,17 @@ type AlchemyBalanceQuery = {
   token: PoolPlaceInfo['protocol'] | 'USDC';
 };
 
-const makeSpectrumAccountQuery = (
-  desc: {
-    chainName: SupportedChain;
-    address: string;
-    asset: string;
-  },
+type SpectrumBalanceQuery = {
+  place: AssetPlaceRef;
+  chainName: SupportedChain;
+  address: string;
+  asset: string;
+};
+
+const makeSpectrumGetAddressBalanceInput = (
+  desc: Pick<SpectrumBalanceQuery, 'chainName' | 'address' | 'asset'>,
   powers: BalanceQueryPowers,
-): SpectrumAccountQuery => {
+): SpectrumGetAddressBalanceInput => {
   const { chainName, address, asset } = desc;
   const chainId = lookupValueForKey(powers.spectrumChainIds, chainName);
   const token =
@@ -114,7 +110,7 @@ export const getCurrentBalances = async (
   /** Queries for Alchemy (EVM account & position balances) */
   const alchemyQueries = [] as AlchemyBalanceQuery[];
   /** Queries for the Spectrum Blockchain API (non-EVM account balances) */
-  const spectrumAccountQueries: Array<BalanceQueryDescriptor> = [];
+  const spectrumAccountQueries = [] as SpectrumBalanceQuery[];
   const balances = new Map<AssetPlaceRef, NatAmount | undefined>();
   const errors = [] as Error[];
 
@@ -186,7 +182,7 @@ export const getCurrentBalances = async (
     spectrumAccountQueries.length
       ? spectrumBlockchain.getBalances({
           accounts: spectrumAccountQueries.map(q =>
-            makeSpectrumAccountQuery(q, powers),
+            makeSpectrumGetAddressBalanceInput(q, powers),
           ),
         })
       : { balances: [] },
