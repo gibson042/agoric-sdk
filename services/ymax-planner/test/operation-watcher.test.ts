@@ -44,14 +44,17 @@ const buildRouterPayload = (paddedTxId: string) => {
  * Encode Axelar execute() calldata with a given payload, returning the
  * calldata and the expected payloadHash (keccak256 of the raw payload bytes).
  */
-const encodeExecuteCalldata = (payload: string) => {
+const encodeExecuteCalldata = (
+  payload: string,
+  sourceAddress: string = 'agoric1test',
+) => {
   const axelarExecuteIface = new Interface([
     'function execute(bytes32 commandId, string sourceChain, string sourceAddress, bytes payload) external',
   ]);
   const calldata = axelarExecuteIface.encodeFunctionData('execute', [
     hexlify(randomBytes(32)),
     'agoric',
-    'agoric1test',
+    sourceAddress,
     payload,
   ]);
   return { calldata, payloadHash: keccak256(payload) };
@@ -125,24 +128,61 @@ test('watchOperationResult detects successful OperationResult event (live mode)'
   const logMessages: string[] = [];
   const logger = (...args: any[]) => logMessages.push(args.join(' '));
 
-  // Emit success event after a short delay
+  const txHash = '0x123abc';
+  const blockNumber = 18500000;
+
+  const mockLog = createMockOperationResultLog(
+    routerAddress,
+    paddedId,
+    true, // success
+    '',
+    blockNumber,
+    txHash,
+  );
+
+  // Build calldata for the Alchemy subscription message
+  const payload = buildRouterPayload(paddedId);
+  const { calldata, payloadHash } = encodeExecuteCalldata(
+    payload,
+    MOCK_SOURCE_ADDRESS,
+  );
+
+  // Mock receipt with OperationResult event
+  (provider as any).getTransactionReceipt = async (hash: string) => {
+    if (hash === txHash) {
+      return {
+        status: 1,
+        blockNumber,
+        blockHash: '0xblockhash',
+        transactionHash: txHash,
+        logs: [mockLog],
+      };
+    }
+    return null;
+  };
+
+  // Emit Alchemy mined-tx message after a short delay
   setTimeout(() => {
-    const mockLog = createMockOperationResultLog(
-      routerAddress,
-      paddedId,
-      true, // success
-      '',
-      18500000,
-      '0x123abc',
-    );
+    const wsMessage = JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'eth_subscription',
+      params: {
+        result: {
+          removed: false,
+          transaction: {
+            hash: txHash,
+            input: calldata,
+            to: routerAddress,
+            from: '0x0000000000000000000000000000000000000001',
+            value: '0x0',
+            blockNumber: `0x${blockNumber.toString(16)}`,
+          },
+        },
+        subscription: 'mock-sub-id',
+      },
+    });
 
-    const expectedIdHash = id(paddedId);
-    const filter = {
-      address: routerAddress,
-      topics: [OPERATION_RESULT_SIGNATURE, expectedIdHash],
-    };
-
-    (provider as any).emit(filter, mockLog);
+    (provider as any).websocket.emit('message', wsMessage);
   }, 50);
 
   const result = await watchOperationResult({
@@ -152,14 +192,14 @@ test('watchOperationResult detects successful OperationResult event (live mode)'
     kvStore,
     txId,
     sourceAddress: MOCK_SOURCE_ADDRESS,
-    payloadHash: MOCK_PAYLOAD_HASH,
+    payloadHash,
     timeoutMs: 3000,
     log: logger,
   });
 
   t.true(result.settled, 'Should be settled');
   t.true(result.success, 'Should be successful');
-  t.is(result.txHash, '0x123abc', 'Should have correct txHash');
+  t.is(result.txHash, txHash, 'Should have correct txHash');
 
   t.true(
     logMessages.some(msg => msg.includes('✅ SUCCESS')),
@@ -189,9 +229,32 @@ test('watchOperationResult detects failed OperationResult event with finality pr
     blockNumber,
     txHash,
   );
+
+  // Build calldata for the Alchemy subscription message
+  const payload = buildRouterPayload(paddedId);
+  const { calldata, payloadHash } = encodeExecuteCalldata(
+    payload,
+    MOCK_SOURCE_ADDRESS,
+  );
+
+  // Mock receipt with failed OperationResult event
+  (provider as any).getTransactionReceipt = async (hash: string) => {
+    if (hash === txHash) {
+      return {
+        status: 1,
+        blockNumber,
+        blockHash: '0xblockhash',
+        transactionHash: txHash,
+        logs: [mockLog],
+      };
+    }
+    return null;
+  };
+
+  // Re-fetch logs for finality check (handleOperationFailure)
   (provider as any).getLogs = async () => [mockLog];
 
-  // Override waitForTransaction to return a receipt (needed for finality check)
+  // Override waitForTransaction for finality check
   (provider as any).waitForTransaction = async () => ({
     status: 1,
     blockNumber,
@@ -199,15 +262,28 @@ test('watchOperationResult detects failed OperationResult event with finality pr
     transactionHash: txHash,
   });
 
-  // Emit failure event after a short delay
+  // Emit Alchemy mined-tx message after a short delay
   setTimeout(() => {
-    const expectedIdHash = id(paddedId);
-    const filter = {
-      address: routerAddress,
-      topics: [OPERATION_RESULT_SIGNATURE, expectedIdHash],
-    };
+    const wsMessage = JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'eth_subscription',
+      params: {
+        result: {
+          removed: false,
+          transaction: {
+            hash: txHash,
+            input: calldata,
+            to: routerAddress,
+            from: '0x0000000000000000000000000000000000000001',
+            value: '0x0',
+            blockNumber: `0x${blockNumber.toString(16)}`,
+          },
+        },
+        subscription: 'mock-sub-id',
+      },
+    });
 
-    (provider as any).emit(filter, mockLog);
+    (provider as any).websocket.emit('message', wsMessage);
   }, 50);
 
   const result = await watchOperationResult({
@@ -217,7 +293,7 @@ test('watchOperationResult detects failed OperationResult event with finality pr
     kvStore,
     txId,
     sourceAddress: MOCK_SOURCE_ADDRESS,
-    payloadHash: MOCK_PAYLOAD_HASH,
+    payloadHash,
     timeoutMs: 3000,
     log: logger,
   });
