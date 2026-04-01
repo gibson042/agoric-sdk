@@ -24,17 +24,14 @@ import {
   TxType,
 } from '@aglocal/portfolio-contract/src/resolver/constants.js';
 
+import type { CaipChainId } from '@agoric/orchestration';
 import { loadConfig } from '../src/config.ts';
-import { CosmosRestClient } from '../src/cosmos-rest-client.ts';
 import { CosmosRPCClient } from '../src/cosmos-rpc.ts';
 import { createEVMContext, prepareAbortController } from '../src/support.ts';
-import { makeEvmRpc } from '../src/evm-scanner.ts';
+import { makeEvmRpc, type EvmRpc } from '../src/evm-scanner.ts';
 import type { SimplePowers } from '../src/main.ts';
 import { makeSQLiteKeyValueStore } from '../src/kv-store.ts';
-import type {
-  EvmRpcProviders,
-  HandlePendingTxOpts,
-} from '../src/pending-tx-manager.ts';
+import type { HandlePendingTxOpts } from '../src/pending-tx-manager.ts';
 import { handlePendingTx } from '../src/pending-tx-manager.ts';
 import {
   parseStreamCell,
@@ -98,12 +95,6 @@ export const processTx = async (
   });
   await rpc.opened();
 
-  const cosmosRest = new CosmosRestClient(simplePowers, {
-    clusterName,
-    timeout: config.cosmosRest.timeout,
-    retries: config.cosmosRest.retries,
-  });
-
   const walletUtils = await makeSmartWalletKit(simplePowers, networkConfig);
   const signingSmartWalletKit = await makeSigningSmartWalletKit(
     { connectWithSigner, walletUtils },
@@ -137,7 +128,7 @@ export const processTx = async (
       caip,
       makeEvmRpc(provider, setTimeout),
     ]),
-  ) as EvmRpcProviders;
+  ) as Record<CaipChainId, EvmRpc>;
 
   const { db, kvStore } = makeSQLiteKeyValueStore(config.sqlite.dbPath, {
     trace: () => {},
@@ -191,8 +182,6 @@ export const processTx = async (
       const txPowers: HandlePendingTxOpts = Object.freeze({
         ...evmCtx,
         retryProviders,
-        cosmosRest,
-        cosmosRpc: rpc,
         fetch,
         setTimeout,
         kvStore,

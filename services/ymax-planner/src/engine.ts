@@ -27,7 +27,6 @@ import {
   TxType,
 } from '@aglocal/portfolio-contract/src/resolver/constants.js';
 import type {
-  ERC4626InstrumentId,
   FlowDetail,
   PoolKey as InstrumentId,
   StatusFor,
@@ -57,12 +56,11 @@ import type {
   PortfolioKey,
   SupportedChain,
 } from '@agoric/portfolio-api';
-import type { EvmAddress } from '@agoric/fast-usdc';
 
-import type { CosmosRestClient } from './cosmos-rest-client.ts';
+import type { EvmAddress } from '@agoric/fast-usdc';
+import type { WebSocketProvider } from 'ethers';
 import type { CosmosRPCClient, SubscriptionResponse } from './cosmos-rpc.ts';
 import type { Sdk as SpectrumBlockchainSdk } from './graphql/api-spectrum-blockchain/__generated/sdk.ts';
-import type { Sdk as SpectrumPoolsSdk } from './graphql/api-spectrum-pools/__generated/sdk.ts';
 import { logger, runWithFlowTrace } from './logger.ts';
 import type {
   EvmChain,
@@ -78,7 +76,6 @@ import {
   planWithdrawFromAllocations,
 } from './plan-deposit.ts';
 import { UserInputError } from './support.ts';
-import type { EvmProviders } from './support.ts';
 import {
   encodedKeyToPath,
   pathToEncodedKey,
@@ -174,13 +171,11 @@ export const makeVstorageEvent = (
 };
 
 export type Powers = {
-  evmCtx: Omit<EvmContext, 'signingSmartWalletKit' | 'fetch' | 'cosmosRest'>;
+  evmCtx: Omit<EvmContext, 'signingSmartWalletKit' | 'fetch'>;
   rpc: CosmosRPCClient;
   spectrumBlockchain: SpectrumBlockchainSdk;
-  spectrumPools: SpectrumPoolsSdk;
   spectrumChainIds: Partial<Record<SupportedChain, string>>;
-  spectrumPoolIds: Partial<Record<InstrumentId, string>>;
-  cosmosRest: CosmosRestClient;
+  evmTokenAddresses: Partial<Record<InstrumentId, EvmAddress>>;
   network: NetworkSpec;
   signingSmartWalletKit: SigningSmartWalletKit;
   walletStore: ReturnType<typeof reflectWalletStore>;
@@ -191,24 +186,20 @@ export type Powers = {
   now: typeof Date.now;
   gasEstimator: GasEstimator;
   usdcTokensByChain: Partial<Record<SupportedChain, string>>;
-  erc4626VaultAddresses: Partial<Record<ERC4626InstrumentId, EvmAddress>>;
   chainNameToChainIdMap: Partial<Record<EvmChain, CaipChainId>>;
 };
 
 export type ProcessPortfolioPowers = Pick<
   Powers,
-  | 'cosmosRest'
   | 'network'
   | 'spectrumBlockchain'
-  | 'spectrumPools'
   | 'spectrumChainIds'
-  | 'spectrumPoolIds'
+  | 'evmTokenAddresses'
   | 'signingSmartWalletKit'
   | 'walletStore'
   | 'getWalletInvocationUpdate'
   | 'gasEstimator'
   | 'usdcTokensByChain'
-  | 'erc4626VaultAddresses'
   | 'chainNameToChainIdMap'
 > & {
   isDryRun?: boolean;
@@ -218,7 +209,7 @@ export type ProcessPortfolioPowers = Pick<
   vstoragePathPrefixes: {
     portfoliosPathPrefix: string;
   };
-  evmProviders: EvmProviders;
+  evmProviders: Record<CaipChainId, WebSocketProvider>;
 };
 
 export type PortfoliosMemory = {
@@ -250,7 +241,6 @@ export const processPortfolioEvents = async (
   memory: PortfoliosMemory,
   {
     isDryRun,
-    cosmosRest,
     depositBrand,
     feeBrand,
     gasEstimator,
@@ -259,12 +249,10 @@ export const processPortfolioEvents = async (
     walletStore,
     getWalletInvocationUpdate,
     spectrumBlockchain,
-    spectrumPools,
     spectrumChainIds,
-    spectrumPoolIds,
+    evmTokenAddresses,
     usdcTokensByChain,
     vstoragePathPrefixes,
-    erc4626VaultAddresses,
     evmProviders,
     chainNameToChainIdMap,
 
@@ -287,13 +275,10 @@ export const processPortfolioEvents = async (
     portfolioKeyForDepositAddr.set(addr, key);
   };
   const balanceQueryPowers: BalanceQueryPowers = {
-    cosmosRest,
     spectrumBlockchain,
-    spectrumPools,
     spectrumChainIds,
-    spectrumPoolIds,
+    evmTokenAddresses,
     usdcTokensByChain,
-    erc4626VaultAddresses,
     evmProviders,
     chainNameToChainIdMap,
   };
@@ -614,13 +599,13 @@ export const pickBalance = (
  */
 export const processInitialPendingTransactions = async (
   initialPendingTxData: PendingTxRecord[],
-  txPowers: HandlePendingTxOpts,
+  powers: HandlePendingTxOpts & { cosmosRpc: CosmosRPCClient },
   handlePendingTxFn = handlePendingTx,
 ) => {
+  const { cosmosRpc, ...txPowers } = powers;
   const {
     error = () => {},
     log = () => {},
-    cosmosRpc,
     pendingTxAbortControllers,
   } = txPowers;
 
@@ -687,7 +672,7 @@ export const startEngine = async (
     feeBrandName: string;
   },
 ) => {
-  const { evmCtx, cosmosRest, rpc, signingSmartWalletKit } = powers;
+  const { evmCtx, rpc, signingSmartWalletKit } = powers;
   const vstoragePathPrefixes = makeVstoragePathPrefixes(contractInstance);
   const { portfoliosPathPrefix, pendingTxPathPrefix } = vstoragePathPrefixes;
   await null;
@@ -792,8 +777,6 @@ export const startEngine = async (
 
   const txPowers: HandlePendingTxOpts = Object.freeze({
     ...evmCtx,
-    cosmosRest,
-    cosmosRpc: rpc,
     fetch,
     log: console.warn.bind(console),
     error: console.error.bind(console),
@@ -836,7 +819,10 @@ export const startEngine = async (
 
   if (initialPendingTxData.length > 0) {
     // Process initial transactions in lookback mode upon planner startup
-    await processInitialPendingTransactions(initialPendingTxData, txPowers);
+    await processInitialPendingTransactions(initialPendingTxData, {
+      ...txPowers,
+      cosmosRpc: rpc,
+    });
   }
 
   // console.warn('consuming events');

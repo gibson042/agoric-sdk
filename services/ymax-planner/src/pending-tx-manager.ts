@@ -16,15 +16,10 @@ import type {
 } from '@aglocal/portfolio-contract/src/resolver/types.ts';
 import type { KVStore } from '@agoric/internal/src/kv-store.js';
 
-import type { CosmosRestClient } from './cosmos-rest-client.ts';
-import type { CosmosRPCClient } from './cosmos-rpc.ts';
+import type { WebSocketProvider } from 'ethers';
 import { resolvePendingTx } from './resolver.ts';
 import { waitForBlock, type EvmRpc } from './evm-scanner.ts';
-import type {
-  EvmProviders,
-  MakeAbortController,
-  UsdcAddresses,
-} from './support.ts';
+import type { MakeAbortController, UsdcAddresses } from './support.ts';
 import { lookBackCctp, watchCctpTransfer } from './watchers/cctp-watcher.ts';
 import { lookBackGmp, watchGmp } from './watchers/gmp-watcher.ts';
 import {
@@ -49,15 +44,12 @@ export type GmpWatcherResult = WatcherResult & {
   rejectionReason?: string;
 };
 
-export type EvmRpcProviders = Record<CaipChainId, EvmRpc>;
-
 export type EvmContext = {
-  cosmosRest: CosmosRestClient;
   usdcAddresses: UsdcAddresses['mainnet' | 'testnet'];
   // XXX eliminate evmProviders from EvmContext and use retryProviders for the
   // balance-checking path too.
-  evmProviders: EvmProviders;
-  retryProviders: EvmRpcProviders;
+  evmProviders: Record<CaipChainId, WebSocketProvider>;
+  retryProviders: Record<CaipChainId, EvmRpc>;
   signingSmartWalletKit: SigningSmartWalletKit;
   fetch: typeof fetch;
   setTimeout: typeof globalThis.setTimeout;
@@ -612,7 +604,6 @@ const MONITORS = new Map<
 ]);
 
 export type HandlePendingTxOpts = {
-  cosmosRpc: CosmosRPCClient;
   log?: (...args: unknown[]) => void;
   error?: (...args: unknown[]) => void;
   marshaller: SigningSmartWalletKit['marshaller'];

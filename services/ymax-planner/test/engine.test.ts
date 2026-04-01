@@ -56,7 +56,6 @@ import { setLogTarget } from '../src/logger.ts';
 import {
   createMockEnginePowers,
   makeNotImplemented,
-  makeNotImplementedAsync,
   mockEvmCtx,
 } from './mocks.ts';
 
@@ -461,9 +460,6 @@ const fakePortfolioKit = async ({
         });
         return { balances };
       },
-    };
-    powers.spectrumPools = {
-      getBalances: makeNotImplementedAsync('spectrumPools.getBalances'),
     };
   }
   updateVstorage(portfolioPath, 'set', {

@@ -2,7 +2,6 @@ import { assert, Fail, X } from '@endo/errors';
 
 import type { AssetPlaceRef } from '@aglocal/portfolio-contract/src/type-guards-steps.js';
 import type {
-  ERC4626InstrumentId,
   PoolKey,
   PoolPlaceInfo,
   StatusFor,
@@ -14,26 +13,26 @@ import { planRebalanceFlow } from '@aglocal/portfolio-contract/tools/plan-solve.
 import type { GasEstimator } from '@aglocal/portfolio-contract/tools/plan-solve.ts';
 import { AmountMath } from '@agoric/ertp/src/amountMath.js';
 import type { Brand, NatAmount, NatValue } from '@agoric/ertp/src/types.js';
-import type { EvmAddress } from '@agoric/fast-usdc';
 import { objectMap, objectMetaMap, typedEntries } from '@agoric/internal';
 import type { Caip10Record, CaipChainId } from '@agoric/orchestration';
 import { parseAccountId } from '@agoric/orchestration/src/utils/address.js';
-import type { FundsFlowPlan, SupportedChain } from '@agoric/portfolio-api';
-import {
-  ACCOUNT_DUST_EPSILON,
-  isInstrumentId,
-  YieldProtocol,
+import type {
+  FundsFlowPlan,
+  InterChainAccountRef,
+  SupportedChain,
 } from '@agoric/portfolio-api';
+import { ACCOUNT_DUST_EPSILON, isInstrumentId } from '@agoric/portfolio-api';
 
-import type { CosmosRestClient } from './cosmos-rest-client.js';
-import { getERC4626VaultsBalances } from './erc4626-utils.ts';
-import type { ChainAddressTokenBalance } from './graphql/api-spectrum-blockchain/__generated/graphql.ts';
+import type { EvmAddress } from '@agoric/fast-usdc';
+import type { WebSocketProvider } from 'ethers';
+import { getErc20Balances } from './evm-utils.ts';
+import type {
+  ChainAddressTokenBalance,
+  ChainAddressTokenInput as SpectrumAccountQuery,
+} from './graphql/api-spectrum-blockchain/__generated/graphql.ts';
 import type { Sdk as SpectrumBlockchainSdk } from './graphql/api-spectrum-blockchain/__generated/sdk.ts';
-import type { ProtocolPoolUserBalanceResult } from './graphql/api-spectrum-pools/__generated/graphql.ts';
-import type { Sdk as SpectrumPoolsSdk } from './graphql/api-spectrum-pools/__generated/sdk.ts';
 import type { EvmChain } from './pending-tx-manager.ts';
-import type { EvmProviders } from './support.ts';
-import { spectrumProtocols, UserInputError } from './support.ts';
+import { UserInputError } from './support.ts';
 import { getOwn, lookupValueForKey } from './utils.js';
 
 const scale6 = (x: number) => {
@@ -53,82 +52,55 @@ const isNonemptyPositionEntry = (entry: [AssetPlaceRef, NatValue]): boolean => {
   return isInstrumentId(place) && value > 0n;
 };
 
-// Note the differences in the shape of field `balance` between the two Spectrum
-// APIs (string vs. Record<'USDC' | 'USD' | string, number>).
-type AccountBalance = ChainAddressTokenBalance['balance'];
-const amountFromAccountBalance = (
+const amountFromSpectrumAccountBalance = (
   brand: Brand<'nat'>,
-  balance: AccountBalance,
+  balance: ChainAddressTokenBalance['balance'],
 ) =>
   balance === undefined
     ? undefined
     : AmountMath.make(brand, scale6(Number(balance)));
-type PositionBalance = ProtocolPoolUserBalanceResult['balance'];
-const amountFromPositionBalance = (
-  brand: Brand<'nat'>,
-  balanceRecord: PositionBalance,
-) =>
-  balanceRecord?.USDC === undefined
-    ? undefined
-    : AmountMath.make(brand, scale6(balanceRecord.USDC));
 
 export type BalanceQueryPowers = {
-  cosmosRest: CosmosRestClient;
   spectrumBlockchain: SpectrumBlockchainSdk;
-  spectrumPools: SpectrumPoolsSdk;
   spectrumChainIds: Partial<Record<SupportedChain, string>>;
-  spectrumPoolIds: Partial<Record<PoolKey, string>>;
+  evmTokenAddresses: Partial<
+    Record<InterChainAccountRef | PoolKey, EvmAddress>
+  >;
   usdcTokensByChain: Partial<Record<SupportedChain, string>>;
-  erc4626VaultAddresses: Partial<Record<ERC4626InstrumentId, EvmAddress>>;
-  evmProviders: EvmProviders;
+  evmProviders: Record<CaipChainId, WebSocketProvider>;
   chainNameToChainIdMap: Partial<Record<EvmChain, CaipChainId>>;
 };
 
-type AccountQueryDescriptor = {
+type BalanceQueryDescriptor = {
   place: AssetPlaceRef;
   chainName: SupportedChain;
   address: string;
   asset: string;
 };
 
-type PositionQueryDescriptor = {
-  place: PoolKey;
+type AlchemyBalanceQuery = {
+  place: InterChainAccountRef | PoolKey;
   chainName: SupportedChain;
-  protocol: PoolPlaceInfo['protocol'];
   address: string;
+  token: PoolPlaceInfo['protocol'] | 'USDC';
 };
 
 const makeSpectrumAccountQuery = (
-  desc: AccountQueryDescriptor,
+  desc: {
+    chainName: SupportedChain;
+    address: string;
+    asset: string;
+  },
   powers: BalanceQueryPowers,
-) => {
+): SpectrumAccountQuery => {
   const { chainName, address, asset } = desc;
   const chainId = lookupValueForKey(powers.spectrumChainIds, chainName);
-  if (asset !== 'USDC') {
-    // "USDN" -> "usdn"
-    return { chain: chainId, address, token: asset.toLowerCase() };
-  }
-  const token = lookupValueForKey(powers.usdcTokensByChain, chainName);
+  const token =
+    asset === 'USDC'
+      ? lookupValueForKey(powers.usdcTokensByChain, chainName)
+      : // "USDN" -> "usdn"
+        asset.toLowerCase();
   return { chain: chainId, address, token };
-};
-
-const makeSpectrumPoolQuery = (
-  desc: PositionQueryDescriptor,
-  powers: BalanceQueryPowers,
-) => {
-  const { place, chainName, protocol, address } = desc;
-  return {
-    chain: lookupValueForKey(powers.spectrumChainIds, chainName),
-    protocol: lookupValueForKey(spectrumProtocols, protocol),
-    pool: lookupValueForKey(powers.spectrumPoolIds, place),
-    address,
-  };
-};
-
-export type ERC4626VaultQuery = {
-  place: PoolKey;
-  chainName: SupportedChain;
-  address: string;
 };
 
 export const getCurrentBalances = async (
@@ -137,13 +109,16 @@ export const getCurrentBalances = async (
   powers: BalanceQueryPowers,
 ): Promise<Partial<Record<AssetPlaceRef, NatAmount | undefined>>> => {
   const { positionKeys, accountIdByChain } = status;
-  const { spectrumBlockchain, spectrumPools } = powers;
+  const { spectrumBlockchain } = powers;
   const addressInfo = new Map<SupportedChain, Caip10Record>();
-  const accountQueries = [] as AccountQueryDescriptor[];
-  const positionQueries = [] as PositionQueryDescriptor[];
-  const erc4626Queries = [] as PositionQueryDescriptor[];
+  /** Queries for Alchemy (EVM account & position balances) */
+  const alchemyQueries = [] as AlchemyBalanceQuery[];
+  /** Queries for the Spectrum Blockchain API (non-EVM account balances) */
+  const spectrumAccountQueries: Array<BalanceQueryDescriptor> = [];
   const balances = new Map<AssetPlaceRef, NatAmount | undefined>();
   const errors = [] as Error[];
+
+  // Define account queries (EVM chains via Alchemy, others via Spectrum).
   for (const [chainName, accountId] of typedEntries(
     accountIdByChain as Required<typeof accountIdByChain>,
   )) {
@@ -152,12 +127,32 @@ export const getCurrentBalances = async (
     try {
       const addressParts = parseAccountId(accountId);
       addressInfo.set(chainName, addressParts);
-      const { accountAddress: address } = addressParts;
-      accountQueries.push({ place, chainName, address, asset: 'USDC' });
-    } catch {
-      errors.push(Error(`Invalid CAIP-10 address for chain: ${chainName}`));
+      const { namespace, accountAddress: address } = addressParts;
+      if (namespace === 'eip155') {
+        alchemyQueries.push({
+          place: place as `@${EvmChain}`,
+          chainName,
+          address,
+          token: 'USDC',
+        });
+      } else {
+        spectrumAccountQueries.push({
+          place,
+          chainName,
+          address,
+          asset: 'USDC',
+        });
+      }
+    } catch (cause) {
+      const err = Error(
+        `Cannot make query for ${chainName} address ${accountId}`,
+        { cause },
+      );
+      errors.push(err);
     }
   }
+
+  // Define position queries (EVM chains via Alchemy, others via Spectrum).
   for (const instrument of positionKeys) {
     const place = instrument;
     balances.set(place, undefined);
@@ -169,70 +164,74 @@ export const getCurrentBalances = async (
       const { namespace, accountAddress: address } =
         addressInfo.get(chainName) ||
         Fail`No ${chainName} address for instrument ${instrument}`;
-      if (namespace !== 'eip155') {
-        // USDN Vaults are not "pools" and specifically are not in the Spectrum
-        // Pools API.
-        accountQueries.push({ place, chainName, address, asset: protocol });
-      } else if (protocol === YieldProtocol.ERC4626) {
-        // ERC-4626 vault queries are issued directly.
-        erc4626Queries.push({ place, chainName, protocol, address });
+      if (namespace === 'eip155') {
+        alchemyQueries.push({ place, chainName, address, token: protocol });
       } else {
-        // Other queries go through the Spectrum Pools API.
-        positionQueries.push({ place, chainName, protocol, address });
+        spectrumAccountQueries.push({
+          place,
+          chainName,
+          address,
+          asset: protocol,
+        });
       }
     } catch (err) {
       errors.push(err);
     }
   }
 
-  const spectrumAccountQueries = accountQueries.map(desc =>
-    makeSpectrumAccountQuery(desc, powers),
-  );
-  const spectrumPoolQueries = positionQueries.map(desc =>
-    makeSpectrumPoolQuery(desc, powers),
-  );
-
-  const [accountResult, positionResult, erc4626Result] =
-    await Promise.allSettled([
-      spectrumAccountQueries.length
-        ? spectrumBlockchain.getBalances({ accounts: spectrumAccountQueries })
-        : { balances: [] },
-      spectrumPoolQueries.length
-        ? spectrumPools.getBalances({ positions: spectrumPoolQueries })
-        : { balances: [] },
-      erc4626Queries.length
-        ? getERC4626VaultsBalances(erc4626Queries, powers)
-        : { balances: [] },
-    ]);
+  const [alchemyResult, spectrumAccountResult] = await Promise.allSettled([
+    alchemyQueries.length
+      ? getErc20Balances(alchemyQueries, powers)
+      : { balances: [] },
+    spectrumAccountQueries.length
+      ? spectrumBlockchain.getBalances({
+          accounts: spectrumAccountQueries.map(q =>
+            makeSpectrumAccountQuery(q, powers),
+          ),
+        })
+      : { balances: [] },
+  ]);
 
   if (
-    accountResult.status !== 'fulfilled' ||
-    positionResult.status !== 'fulfilled' ||
-    erc4626Result.status !== 'fulfilled'
+    alchemyResult.status !== 'fulfilled' ||
+    spectrumAccountResult.status !== 'fulfilled'
   ) {
-    const rejections = [accountResult, positionResult, erc4626Result].flatMap(
+    const rejections = [alchemyResult, spectrumAccountResult].flatMap(
       settlement =>
         settlement.status === 'fulfilled' ? [] : [settlement.reason],
     );
     errors.push(...rejections);
     throw AggregateError(errors, 'Could not get balances');
   }
-  const accountBalances = accountResult.value.balances;
-  const positionBalances = positionResult.value.balances;
-  const erc4626Balances = erc4626Result.value.balances;
+  const alchemyBalances = alchemyResult.value.balances;
+  const spectrumAccountBalances = spectrumAccountResult.value.balances;
   if (
-    accountBalances.length !== accountQueries.length ||
-    positionBalances.length !== positionQueries.length ||
-    erc4626Balances.length !== erc4626Queries.length
+    alchemyBalances.length !== alchemyQueries.length ||
+    spectrumAccountBalances.length !== spectrumAccountQueries.length
   ) {
-    const msg = `Bad balance query response(s), expected [${[accountBalances.length, positionBalances.length, erc4626Balances.length]}] results but got [${[accountQueries.length, positionQueries.length, erc4626Queries.length]}]`;
+    const msg = `Bad balance query response(s), expected [${[alchemyBalances.length, spectrumAccountBalances.length]}] results but got [${[alchemyQueries.length, spectrumAccountQueries.length]}]`;
     throw AggregateError(errors, msg);
   }
-  for (let i = 0; i < accountQueries.length; i += 1) {
-    const { place, asset } = accountQueries[i];
-    const result = accountBalances[i];
+
+  for (let i = 0; i < alchemyBalances.length; i += 1) {
+    const { place, balance, error } = alchemyBalances[i];
+    if (error) {
+      errors.push(Error(error));
+    }
+    balances.set(
+      place as AssetPlaceRef,
+      balance === undefined ? undefined : AmountMath.make(brand, balance),
+    );
+  }
+
+  for (let i = 0; i < spectrumAccountQueries.length; i += 1) {
+    const { place, asset } = spectrumAccountQueries[i];
+    const result = spectrumAccountBalances[i];
     if (result.error) errors.push(Error(result.error));
-    const balanceAmount = amountFromAccountBalance(brand, result.balance);
+    const balanceAmount = amountFromSpectrumAccountBalance(
+      brand,
+      result.balance,
+    );
     balances.set(place, balanceAmount);
     // XXX as of 2025-11-19, spectrumBlockchain.getBalances returns @agoric
     // IBC USDC balances in micro-USDC (uusdc) rather than USDC like the rest.
@@ -242,23 +241,6 @@ export const getCurrentBalances = async (
         errors.push(Error(msg));
       }
       balances.set(place, AmountMath.make(brand, BigInt(result.balance)));
-    }
-  }
-  for (let i = 0; i < positionQueries.length; i += 1) {
-    const { place } = positionQueries[i];
-    const result = positionBalances[i];
-    if (result.error) errors.push(Error(result.error));
-    balances.set(place, amountFromPositionBalance(brand, result.balance));
-  }
-  for (let i = 0; i < erc4626Queries.length; i += 1) {
-    const result = erc4626Balances[i];
-    if (result.error) {
-      errors.push(Error(result.error));
-    }
-    if (result.balance === undefined) {
-      balances.set(result.place, undefined);
-    } else {
-      balances.set(result.place, AmountMath.make(brand, result.balance));
     }
   }
 
