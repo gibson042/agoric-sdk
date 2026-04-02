@@ -2181,6 +2181,89 @@ test('evmHandler.withdraw starts a withdraw flow', async t => {
 });
 
 test.todo('evmHandler.withdraw fails if sourceAccountId not set');
+test(
+  'open portfolio from Base with @Base allocation',
+  async t => {
+    const shared = await setupPlanner(t);
+    const { common } = shared;
+    const { usdc } = common.brands;
+    const inputs = {
+      fromChain: 'Base' as const,
+      depositAmount: usdc.units(1000),
+      allocations: [{ instrument: '@Base', portion: 10000n }],
+    };
+    const expected = {
+      targetAllocation: { '@Base': 10000n },
+    } as const;
+
+    for (const [ix, useRouter] of [false, true].entries()) {
+      const { label, powers } = await makeEvmPlannerPowers(
+        t,
+        shared,
+        ix,
+        useRouter,
+      );
+      const { evmTrader } = powers;
+      const openResult = await doOpenEvmPortfolio(shared, inputs, powers);
+
+      t.is(
+        openResult.storagePath,
+        evmTrader.getPortfolioPath(),
+        `${label} storage path matches`,
+      );
+      t.is(
+        openResult.portfolioId,
+        evmTrader.getPortfolioId(),
+        `${label} portfolio id matches`,
+      );
+
+      const status = await evmTrader.getPortfolioStatus();
+      const { contents } = getPortfolioInfoTimed(
+        t,
+        evmTrader.getPortfolioPath(),
+        common.bootstrap.storage,
+      );
+      const flowHistory =
+        contents[`${evmTrader.getPortfolioPath()}.flows.flow${openResult.flowNum}`];
+
+      t.truthy(
+        Array.isArray(flowHistory) &&
+          flowHistory.some(entry => entry?.state === 'done'),
+        `${label} flow history should include a done entry`,
+      );
+      t.deepEqual(
+        status.flowsRunning,
+        {},
+        `${label} flowsRunning should be empty after plan completes`,
+      );
+      t.truthy(status.accountIdByChain?.Base, `${label} has Base account`);
+      t.deepEqual(status.positionKeys, [], `${label} has no positions`);
+      t.deepEqual(
+        status.targetAllocation,
+        expected.targetAllocation,
+        `${label} target allocation matches`,
+      );
+      const expectedSourceAccountId =
+        `eip155:${chainInfoWithCCTP[inputs.fromChain].reference}:${evmTrader.getAddress().toLowerCase()}` as const;
+      t.is(
+        status.sourceAccountId,
+        expectedSourceAccountId,
+        `${label} sourceAccountId from vstorage`,
+      );
+      t.is(
+        contents[evmTrader.getPortfolioPath()]?.sourceAccountId,
+        expectedSourceAccountId,
+        `${label} sourceAccountId in storage contents`,
+      );
+      snapshotTimed(t, contents, `vstorage (${label})`);
+      await documentStorageSchemaTimed(
+        t,
+        common.bootstrap.storage,
+        pendingTxOpts,
+      );
+    }
+  },
+);
 
 test('evmHandler.deposit (existing Arbitrum) completes a deposit flow', async t => {
   const shared = await setupPlanner(t);
