@@ -99,10 +99,13 @@ export type ProposalType = {
 };
 
 /**
- * Target allocation mapping from PoolKey to numerator (typically in basis points).
- * Denominator is implicitly the sum of all numerators.
+ * Target allocation mapping from InstrumentId or EVM-only InterChainAccountRef
+ * (the latter indicating undeployed USDC on a chain) to numerator (typically in
+ * basis points). Denominator is implicitly the sum of all numerators.
  */
-export type TargetAllocation = Partial<Record<InstrumentId, bigint>>;
+export type TargetAllocation = Partial<
+  Record<InstrumentId | `@${AxelarChain}`, bigint>
+>;
 
 export type FlowDetail =
   | { type: 'withdraw'; amount: NatAmount; toChain?: SupportedChain }
