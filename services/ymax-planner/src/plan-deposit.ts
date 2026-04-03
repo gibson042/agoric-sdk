@@ -13,7 +13,12 @@ import { planRebalanceFlow } from '@aglocal/portfolio-contract/tools/plan-solve.
 import type { GasEstimator } from '@aglocal/portfolio-contract/tools/plan-solve.ts';
 import { AmountMath } from '@agoric/ertp/src/amountMath.js';
 import type { Brand, NatAmount, NatValue } from '@agoric/ertp/src/types.js';
-import { objectMap, objectMetaMap, typedEntries } from '@agoric/internal';
+import {
+  fromTypedEntries,
+  objectMap,
+  objectMetaMap,
+  typedEntries,
+} from '@agoric/internal';
 import type { Caip10Record, CaipChainId } from '@agoric/orchestration';
 import { parseAccountId } from '@agoric/orchestration/src/utils/address.js';
 import type {
@@ -35,6 +40,11 @@ import type { EvmChain } from './pending-tx-manager.ts';
 import { UserInputError } from './support.ts';
 import { getOwn, lookupValueForKey } from './utils.js';
 
+// TODO: const DEFAULT_DELTA_SOFT_MIN = 1_000_000n; // 1 USDC
+const DEFAULT_DELTA_SOFT_MIN = ACCOUNT_DUST_EPSILON;
+
+const bigintAbs = (x: bigint) => (x < 0n ? -x : x);
+
 const scale6 = (x: number) => {
   assert.typeof(x, 'number');
   return BigInt(Math.round(x * 1e6));
@@ -51,6 +61,9 @@ const isNonemptyPositionEntry = (entry: [AssetPlaceRef, NatValue]): boolean => {
   const [place, value] = entry;
   return isInstrumentId(place) && value > 0n;
 };
+
+const natEntriesDesc = <T extends [string, NatValue]>(entries: T[]): T[] =>
+  entries.sort(([_k1, a], [_k2, b]) => (a < b ? 1 : a > b ? -1 : 0));
 
 const amountFromSpectrumAccountBalance = (
   brand: Brand<'nat'>,
@@ -181,8 +194,8 @@ export const getCurrentBalances = async (
       : { balances: [] },
     spectrumAccountQueries.length
       ? spectrumBlockchain.getBalances({
-          accounts: spectrumAccountQueries.map(q =>
-            makeSpectrumGetAddressBalanceInput(q, powers),
+          accounts: spectrumAccountQueries.map(queryDesc =>
+            makeSpectrumGetAddressBalanceInput(queryDesc, powers),
           ),
         })
       : { balances: [] },
@@ -281,7 +294,7 @@ const computeWeightedTargets = <
   total >= 0n || rejectUserInput('Insufficient funds for withdrawal.');
 
   type PW = [C | T, NatValue];
-  const weights: PW[] = Object.keys(allocation).length
+  const allWeights: PW[] = Object.keys(allocation).length
     ? typedEntries({
         // Any current balance with no target has an effective weight of 0.
         ...objectMap(currentValues, () => 0n),
@@ -294,56 +307,81 @@ const computeWeightedTargets = <
           ? valueEntries.map(([p, v]) => [p, isInstrumentId(p) ? v : 0n] as PW)
           : valueEntries;
       })(typedEntries(currentValues));
-  const sumW = weights.reduce((acc, entry) => {
-    const w = entry[1];
-    (typeof w === 'bigint' && w >= 0n) ||
-      rejectUserInput(
-        X`Target allocation weight in ${entry} must be a natural number.`,
-      );
-    return acc + w;
-  }, 0n);
+  let sumW = allWeights.reduce((acc, entry) => acc + entry[1], 0n);
   sumW > 0n ||
     rejectUserInput('Total target allocation weights must be positive.');
 
-  // Try to satisfy the weights, leaving any amount otherwise subject to
-  // rounding loss or representing a too-small delta at the highest-weight
-  // place that can accept it.
-  const draft: Partial<Record<C | T, NatValue>> = {};
+  let prunedTotal = total;
   let remainder = total;
-  for (const [key, w] of weights) {
-    const a = getOwn(currentValues, key) ?? 0n;
-    const b = (total * w) / sumW;
-    const v = isDust(b - a) ? a : b;
-    draft[key] = v;
-    remainder -= v;
-  }
-  if (remainder !== 0n) {
-    weights.sort(([_k1, a], [_k2, b]) => (a < b ? 1 : a > b ? -1 : 0));
-    for (const [key, _w] of weights) {
-      const a = getOwn(currentValues, key) ?? 0n;
-      const v = (draft[key] ?? 0n) + remainder;
-      if (v === a || !isDust(v - a)) {
-        draft[key] = v;
-        remainder = 0n;
-        break;
+  for (const prunedWeights = fromTypedEntries(allWeights); sumW > 0n; ) {
+    // Try to satisfy the weights, suppressing deltas that are too small and
+    // tracking the geometric magnitude by which they miss.
+    const draft: Partial<Record<C | T, NatValue>> = {};
+    const suppressions: [C | T, number][] = [];
+    for (const [place, weight] of typedEntries(prunedWeights) as PW[]) {
+      const current = getOwn(currentValues, place) ?? 0n;
+      const target = (prunedTotal * weight) / sumW;
+      const absDelta = bigintAbs(target - current);
+      // TODO: const chainData = getChainData(place, network);
+      // TODO: const { deltaSoftMin = DEFAULT_DELTA_SOFT_MIN } = getChainData(place, network);
+      const deltaSoftMin = DEFAULT_DELTA_SOFT_MIN;
+      const suppressed = absDelta !== 0n && absDelta < deltaSoftMin;
+      if (suppressed) {
+        suppressions.push([place, Number(deltaSoftMin) / Number(absDelta)]);
       }
+      const resolved = suppressed ? current : target;
+      draft[place] = resolved;
+      remainder -= resolved;
     }
-    remainder === 0n ||
-      rejectUserInput(
-        X`Nowhere to place ${remainder} in update of ${currentValues} to ${draft}`,
-      );
+
+    // If any deltas were suppressed, filter out weights for the biggest misses
+    // and try again with the pruned subset.
+    if (suppressions.length > 0) {
+      suppressions.sort(([_k1, a], [_k2, b]) => (a < b ? 1 : a > b ? -1 : 0));
+      for (let i = 0; i < suppressions.length; i += 1) {
+        const [place, softLimitGap] = suppressions[i];
+        if (i > 0 && softLimitGap !== suppressions[i - 1][1]) break;
+        sumW -= prunedWeights[place] as NatValue;
+        prunedTotal -= getOwn(currentValues, place) ?? 0n;
+        delete prunedWeights[place];
+      }
+      remainder = prunedTotal;
+      continue;
+    }
+
+    // We have our targets. Distribute any rounding loss to the highest-weight
+    // place that can accept it.
+    // XXX We should instead redistribute to minimize error.
+    if (remainder !== 0n) {
+      const weightsDesc = natEntriesDesc(typedEntries(prunedWeights) as PW[]);
+      for (const [key, _w] of weightsDesc) {
+        const a = getOwn(currentValues, key) ?? 0n;
+        const v = (draft[key] ?? 0n) + remainder;
+        if (v === a || !isDust(v - a)) {
+          draft[key] = v;
+          remainder = 0n;
+          break;
+        }
+      }
+      remainder === 0n ||
+        rejectUserInput(
+          X`Nowhere to place ${remainder} in update of ${currentValues} to ${draft}`,
+        );
+    }
+
+    // Return a mutable Record that omits no-change entries.
+    return {
+      ...objectMetaMap(draft, (desc, place) => {
+        const targetValue = desc.value as NatValue;
+        if (targetValue === getOwn(currentValues, place)) return undefined;
+        return { ...desc, value: AmountMath.make(brand, targetValue) };
+      }),
+    };
   }
 
-  // Delete entries reflecting no change.
-  for (const [key, amount] of typedEntries(draft)) {
-    if (amount === getOwn(currentValues, key)) {
-      delete draft[key];
-    }
-  }
-
-  return {
-    ...objectMap(draft, (value: NatValue) => AmountMath.make(brand, value)),
-  };
+  // All changes were suppressed.
+  // TODO: Let a withdraw succeed anyway.
+  return {};
 };
 
 export type PlannerContext<
