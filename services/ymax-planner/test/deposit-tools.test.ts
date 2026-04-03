@@ -5,9 +5,14 @@ import {
   ACCOUNT_DUST_EPSILON,
   CaipChainIds,
   SupportedChain,
+  type AssetPlaceRef,
   type InterChainAccountRef,
   type StatusFor,
 } from '@agoric/portfolio-api';
+import type {
+  PortfolioPublishedPathTypes,
+  TargetAllocation,
+} from '@aglocal/portfolio-contract/src/type-guards.ts';
 import { planUSDNDeposit } from '@aglocal/portfolio-contract/test/mocks.js';
 import {
   readableSteps,
@@ -20,7 +25,6 @@ import type {
 } from '@aglocal/portfolio-contract/tools/network/network-spec.js';
 import type { GasEstimator } from '@aglocal/portfolio-contract/tools/plan-solve.ts';
 import { makePortfolioQuery } from '@aglocal/portfolio-contract/tools/portfolio-actors.js';
-import type { PortfolioPublishedPathTypes } from '@aglocal/portfolio-contract/src/type-guards.ts';
 import type { VstorageKit } from '@agoric/client-utils';
 import { AmountMath } from '@agoric/ertp';
 import type { Brand, NatAmount } from '@agoric/ertp/src/types.js';
@@ -31,7 +35,6 @@ import PROD_NETWORK from '@aglocal/portfolio-contract/tools/network/prod-network
 import type { EvmAddress } from '@agoric/fast-usdc';
 import { USDN } from '../src/cosmos-rest-client.ts';
 import {
-  getCurrentBalances,
   getNonDustBalances,
   planDepositToAllocations,
   planRebalanceToAllocations,
@@ -52,7 +55,7 @@ const makeDeposit = value => AmountMath.make(depositBrand, value);
 const feeBrand = Far('fee brand (BLD)') as Brand<'nat'>;
 
 const plannerContext: Omit<
-  PlannerContext,
+  PlannerContext<AssetPlaceRef, keyof TargetAllocation>,
   'currentBalances' | 'targetAllocation'
 > = {
   brand: depositBrand,
@@ -93,7 +96,7 @@ const handleDeposit = async (
   if (!targetAllocation) {
     return { policyVersion, rebalanceCount, plan: emptyPlan };
   }
-  const currentBalances = await getCurrentBalances(status, amount.brand, {
+  const currentBalances = await getNonDustBalances(status, amount.brand, {
     spectrumChainIds: powers.spectrumChainIds || {},
     usdcTokensByChain: powers.usdcTokensByChain || {},
     evmTokenAddresses: powers.evmTokenAddresses || {},

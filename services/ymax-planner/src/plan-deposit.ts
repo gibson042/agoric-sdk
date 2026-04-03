@@ -246,11 +246,11 @@ export const getCurrentBalances = async (
   return Object.fromEntries(balances);
 };
 
-export const getNonDustBalances = async (
+export const getNonDustBalances = async <C extends AssetPlaceRef>(
   status: StatusFor['portfolio'],
   brand: Brand<'nat'>,
   powers: BalanceQueryPowers,
-): Promise<Partial<Record<AssetPlaceRef, NatAmount>>> => {
+): Promise<Record<C, NatAmount>> => {
   const currentBalances = await getCurrentBalances(status, brand, powers);
   const nonDustBalances = objectMetaMap(currentBalances, desc =>
     desc.value && desc.value.value > ACCOUNT_DUST_EPSILON ? desc : undefined,
@@ -263,24 +263,25 @@ export const getNonDustBalances = async (
  * (chains; keys starting with '@') that have non-zero current amounts. Returns only entries
  * whose values change by at least ACCOUNT_DUST_EPSILON compared to current.
  */
-const computeWeightedTargets = (
+const computeWeightedTargets = <
+  C extends AssetPlaceRef,
+  T extends keyof TargetAllocation,
+>(
   brand: Brand<'nat'>,
-  currentAmounts: Partial<Record<AssetPlaceRef, NatAmount>>,
-  balanceDelta: bigint,
-  allocation: TargetAllocation = {},
-): Partial<Record<AssetPlaceRef, NatAmount>> => {
-  const currentValues = objectMap(
-    currentAmounts as Required<typeof currentAmounts>,
-    amount => amount.value,
-  );
-  const currentTotal = Object.values(currentValues).reduce(
+  currentAmounts: Record<C, NatAmount>,
+  balanceDelta: NatValue,
+  allocation: Partial<Pick<TargetAllocation, T>> = {},
+): Partial<Record<C | T, NatAmount>> => {
+  const currentValues = objectMap(currentAmounts, amount => amount.value);
+  const currentTotal = Object.values<NatValue>(currentValues).reduce(
     (acc, value) => acc + value,
     0n,
   );
   const total = currentTotal + balanceDelta;
   total >= 0n || rejectUserInput('Insufficient funds for withdrawal.');
 
-  const weights: [AssetPlaceRef, NatValue][] = Object.keys(allocation).length
+  type PW = [C | T, NatValue];
+  const weights: PW[] = Object.keys(allocation).length
     ? typedEntries({
         // Any current balance with no target has an effective weight of 0.
         ...objectMap(currentValues, () => 0n),
@@ -290,10 +291,10 @@ const computeWeightedTargets = (
       // zero out hubs (chains) if there is anywhere else to deploy their funds.
       (valueEntries => {
         return valueEntries.some(isNonemptyPositionEntry)
-          ? valueEntries.map(([p, v]) => [p, isInstrumentId(p) ? v : 0n])
+          ? valueEntries.map(([p, v]) => [p, isInstrumentId(p) ? v : 0n] as PW)
           : valueEntries;
       })(typedEntries(currentValues));
-  const sumW = weights.reduce<bigint>((acc, entry) => {
+  const sumW = weights.reduce((acc, entry) => {
     const w = entry[1];
     (typeof w === 'bigint' && w >= 0n) ||
       rejectUserInput(
@@ -307,10 +308,10 @@ const computeWeightedTargets = (
   // Try to satisfy the weights, leaving any amount otherwise subject to
   // rounding loss or representing a too-small delta at the highest-weight
   // place that can accept it.
-  const draft: Partial<Record<AssetPlaceRef, NatValue>> = {};
+  const draft: Partial<Record<C | T, NatValue>> = {};
   let remainder = total;
   for (const [key, w] of weights) {
-    const a = currentValues[key] || 0n;
+    const a = getOwn(currentValues, key) ?? 0n;
     const b = (total * w) / sumW;
     const v = isDust(b - a) ? a : b;
     draft[key] = v;
@@ -319,8 +320,8 @@ const computeWeightedTargets = (
   if (remainder !== 0n) {
     weights.sort(([_k1, a], [_k2, b]) => (a < b ? 1 : a > b ? -1 : 0));
     for (const [key, _w] of weights) {
-      const a = currentValues[key] || 0n;
-      const v = (draft[key] || 0n) + remainder;
+      const a = getOwn(currentValues, key) ?? 0n;
+      const v = (draft[key] ?? 0n) + remainder;
       if (v === a || !isDust(v - a)) {
         draft[key] = v;
         remainder = 0n;
@@ -334,8 +335,8 @@ const computeWeightedTargets = (
   }
 
   // Delete entries reflecting no change.
-  for (const [key, amount] of Object.entries(draft)) {
-    if (amount === currentValues[key]) {
+  for (const [key, amount] of typedEntries(draft)) {
+    if (amount === getOwn(currentValues, key)) {
       delete draft[key];
     }
   }
@@ -345,9 +346,12 @@ const computeWeightedTargets = (
   };
 };
 
-export type PlannerContext = {
-  currentBalances: Partial<Record<AssetPlaceRef, NatAmount>>;
-  targetAllocation?: TargetAllocation;
+export type PlannerContext<
+  C extends AssetPlaceRef,
+  T extends keyof TargetAllocation,
+> = {
+  currentBalances: Record<C, NatAmount>;
+  targetAllocation?: Partial<Pick<TargetAllocation, T>>;
   network: NetworkSpec;
   brand: Brand<'nat'>;
   feeBrand: Brand<'nat'>;
@@ -358,8 +362,14 @@ export type PlannerContext = {
  * Plan deposit driven by target allocation weights.
  * Computes absolute targets, then plans the corresponding flow.
  */
-export const planDepositToAllocations = async (
-  details: PlannerContext & { amount: NatAmount; fromChain?: SupportedChain },
+export const planDepositToAllocations = async <
+  C extends AssetPlaceRef,
+  T extends keyof TargetAllocation,
+>(
+  details: PlannerContext<C, T> & {
+    amount: NatAmount;
+    fromChain?: SupportedChain;
+  },
 ): Promise<FundsFlowPlan> => {
   const { amount, brand, currentBalances, targetAllocation } = details;
   const { fromChain = 'agoric' } = details;
@@ -395,8 +405,11 @@ export const planDepositToAllocations = async (
  * Plan rebalance driven by target allocation weights.
  * Computes absolute targets, then plans the corresponding flow.
  */
-export const planRebalanceToAllocations = async (
-  details: PlannerContext,
+export const planRebalanceToAllocations = async <
+  C extends AssetPlaceRef,
+  T extends keyof TargetAllocation,
+>(
+  details: PlannerContext<C, T>,
 ): Promise<FundsFlowPlan> => {
   const { brand, currentBalances, targetAllocation } = details;
   if (!targetAllocation) return { flow: [] };
@@ -423,8 +436,14 @@ export const planRebalanceToAllocations = async (
  * Plan withdrawal driven by target allocation weights.
  * Computes absolute targets, then plans the corresponding flow.
  */
-export const planWithdrawFromAllocations = async (
-  details: PlannerContext & { amount: NatAmount; toChain?: SupportedChain },
+export const planWithdrawFromAllocations = async <
+  C extends AssetPlaceRef,
+  T extends keyof TargetAllocation,
+>(
+  details: PlannerContext<C, T> & {
+    amount: NatAmount;
+    toChain?: SupportedChain;
+  },
 ): Promise<FundsFlowPlan> => {
   const { amount, brand, currentBalances, targetAllocation } = details;
   const { toChain = 'agoric' } = details;
