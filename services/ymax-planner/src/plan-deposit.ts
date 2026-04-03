@@ -394,9 +394,22 @@ const computeWeightedTargets = <
     };
   }
 
-  // All changes were suppressed.
-  // TODO: Let a withdraw succeed anyway.
-  return {};
+  // All deltas were suppressed, and if this is for a deposit or rebalance then
+  // we're done.
+  if (balanceDelta >= 0n) return {};
+
+  // A withdraw should succeed regardless, but minimize the count of deltas
+  // rather than the divergence from target allocation.
+  // @ts-expect-error Record confused by null prototype
+  const draft: Partial<Record<C | T, NatAmount>> = { __proto__: null };
+  remainder = -balanceDelta;
+  for (const [place, value] of natEntriesDesc(typedEntries(currentValues))) {
+    const take = value < remainder ? value : remainder;
+    draft[place] = AmountMath.make(brand, value - take);
+    remainder -= take;
+    if (remainder === 0n) break;
+  }
+  return { ...draft };
 };
 
 export type PlannerContext<
