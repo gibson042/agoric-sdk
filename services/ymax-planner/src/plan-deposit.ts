@@ -1,4 +1,4 @@
-import { assert, Fail, X } from '@endo/errors';
+import { assert, Fail, q, X } from '@endo/errors';
 
 import type { AssetPlaceRef } from '@aglocal/portfolio-contract/src/type-guards-steps.js';
 import type {
@@ -8,7 +8,11 @@ import type {
   TargetAllocation,
 } from '@aglocal/portfolio-contract/src/type-guards.js';
 import { PoolPlaces } from '@aglocal/portfolio-contract/src/type-guards.js';
-import type { NetworkSpec } from '@aglocal/portfolio-contract/tools/network/network-spec.js';
+import { chainOf } from '@aglocal/portfolio-contract/tools/network/buildGraph.js';
+import type {
+  ChainSpec,
+  NetworkSpec,
+} from '@aglocal/portfolio-contract/tools/network/network-spec.js';
 import { planRebalanceFlow } from '@aglocal/portfolio-contract/tools/plan-solve.js';
 import type { GasEstimator } from '@aglocal/portfolio-contract/tools/plan-solve.ts';
 import { AmountMath } from '@agoric/ertp/src/amountMath.js';
@@ -40,8 +44,7 @@ import type { EvmChain } from './pending-tx-manager.ts';
 import { UserInputError } from './support.ts';
 import { getOwn, lookupValueForKey } from './utils.js';
 
-// TODO: const DEFAULT_DELTA_SOFT_MIN = 1_000_000n; // 1 USDC
-const DEFAULT_DELTA_SOFT_MIN = ACCOUNT_DUST_EPSILON;
+const DEFAULT_DELTA_SOFT_MIN = 1_000_000n; // 1 USDC
 
 const bigintAbs = (x: bigint) => (x < 0n ? -x : x);
 
@@ -56,6 +59,18 @@ const rejectUserInput = (details: ReturnType<typeof X> | string): never =>
 
 const isDust = (value: bigint): boolean =>
   -ACCOUNT_DUST_EPSILON < value && value < ACCOUNT_DUST_EPSILON;
+
+const getChainData = (
+  place: AssetPlaceRef,
+  network: NetworkSpec,
+): ChainSpec => {
+  // TODO: memoize place->chainName and network->chains
+  const chainName = chainOf(place);
+  return (
+    network.chains.find(chain => chain.name === chainName) ||
+    Fail`No chain found for asset place ${q(place)}`
+  );
+};
 
 const isNonemptyPositionEntry = (entry: [AssetPlaceRef, NatValue]): boolean => {
   const [place, value] = entry;
@@ -284,6 +299,7 @@ const computeWeightedTargets = <
   currentAmounts: Record<C, NatAmount>,
   balanceDelta: NatValue,
   allocation: Partial<Pick<TargetAllocation, T>> = {},
+  network: NetworkSpec,
 ): Partial<Record<C | T, NatAmount>> => {
   const currentValues = objectMap(currentAmounts, amount => amount.value);
   const currentTotal = Object.values<NatValue>(currentValues).reduce(
@@ -322,9 +338,8 @@ const computeWeightedTargets = <
       const current = getOwn(currentValues, place) ?? 0n;
       const target = (prunedTotal * weight) / sumW;
       const absDelta = bigintAbs(target - current);
-      // TODO: const chainData = getChainData(place, network);
-      // TODO: const { deltaSoftMin = DEFAULT_DELTA_SOFT_MIN } = getChainData(place, network);
-      const deltaSoftMin = DEFAULT_DELTA_SOFT_MIN;
+      const chainData = getChainData(place, network);
+      const { deltaSoftMin = DEFAULT_DELTA_SOFT_MIN } = chainData;
       const suppressed = absDelta !== 0n && absDelta < deltaSoftMin;
       if (suppressed) {
         suppressions.push([place, Number(deltaSoftMin) / Number(absDelta)]);
@@ -409,7 +424,7 @@ export const planDepositToAllocations = async <
     fromChain?: SupportedChain;
   },
 ): Promise<FundsFlowPlan> => {
-  const { amount, brand, currentBalances, targetAllocation } = details;
+  const { amount, brand, currentBalances, network, targetAllocation } = details;
   const { fromChain = 'agoric' } = details;
   if (!targetAllocation) return { flow: [] };
   const target = computeWeightedTargets(
@@ -417,6 +432,7 @@ export const planDepositToAllocations = async <
     currentBalances,
     amount.value,
     targetAllocation,
+    network,
   );
 
   // The deposit should be distributed.
@@ -427,7 +443,7 @@ export const planDepositToAllocations = async <
   const resolvedCurrent = { ...currentBalances, [depositFrom]: amount };
   const resolvedTarget = { ...target, [depositFrom]: zeroAmount };
 
-  const { network, feeBrand, gasEstimator } = details;
+  const { feeBrand, gasEstimator } = details;
   const flowDetail = await planRebalanceFlow({
     network,
     current: resolvedCurrent,
@@ -449,16 +465,17 @@ export const planRebalanceToAllocations = async <
 >(
   details: PlannerContext<C, T>,
 ): Promise<FundsFlowPlan> => {
-  const { brand, currentBalances, targetAllocation } = details;
+  const { brand, currentBalances, network, targetAllocation } = details;
   if (!targetAllocation) return { flow: [] };
   const target = computeWeightedTargets(
     brand,
     currentBalances,
     0n,
     targetAllocation,
+    network,
   );
 
-  const { network, feeBrand, gasEstimator } = details;
+  const { feeBrand, gasEstimator } = details;
   const flowDetail = await planRebalanceFlow({
     network,
     current: currentBalances,
@@ -483,13 +500,14 @@ export const planWithdrawFromAllocations = async <
     toChain?: SupportedChain;
   },
 ): Promise<FundsFlowPlan> => {
-  const { amount, brand, currentBalances, targetAllocation } = details;
+  const { amount, brand, currentBalances, network, targetAllocation } = details;
   const { toChain = 'agoric' } = details;
   const target = computeWeightedTargets(
     brand,
     currentBalances,
     -amount.value,
     targetAllocation,
+    network,
   );
 
   const withdrawTo =
@@ -499,7 +517,7 @@ export const planWithdrawFromAllocations = async <
   const resolvedCurrent = { ...currentBalances, [withdrawTo]: zeroAmount };
   const resolvedTarget = { ...target, [withdrawTo]: amount };
 
-  const { network, feeBrand, gasEstimator } = details;
+  const { feeBrand, gasEstimator } = details;
   const flowDetail = await planRebalanceFlow({
     network,
     current: resolvedCurrent,

@@ -52,6 +52,7 @@ export interface ChainSpec {
   feeDenom?: string; // e.g., 'ubld', 'uusdc'
   gasDenom?: string; // if distinct from feeDenom
   control: ControlProtocol; // how agoric reaches this chain: 'ibc' (noble) or 'axelar' (EVM) or 'local' (agoric)
+  deltaSoftMin?: NatValue; // minimum delta amount for planned moves involving this chain
 }
 
 // Pools (leaves)

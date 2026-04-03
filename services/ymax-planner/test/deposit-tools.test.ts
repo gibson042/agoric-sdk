@@ -13,7 +13,6 @@ import type {
   PortfolioPublishedPathTypes,
   TargetAllocation,
 } from '@aglocal/portfolio-contract/src/type-guards.ts';
-import { planUSDNDeposit } from '@aglocal/portfolio-contract/test/mocks.js';
 import {
   readableSteps,
   readableOrder,
@@ -63,6 +62,11 @@ const plannerContext: Omit<
   feeBrand,
   gasEstimator: mockGasEstimator,
 };
+
+const noMinChainRecords = plannerContext.network.chains.map(chain => ({
+  ...chain,
+  deltaSoftMin: 0n,
+}));
 
 const emptyPlan = harden({ flow: [], order: undefined });
 
@@ -380,7 +384,7 @@ test('handleDeposit handles different position types correctly', async t => {
         [compoundEthereumAddress]: 75_000n,
       },
     },
-    TEST_NETWORK,
+    harden({ ...plannerContext.network, chains: noMinChainRecords }),
   );
   const plan = result?.plan;
   t.snapshot(plan && readableSteps(plan.flow, depositBrand), 'steps');
@@ -425,6 +429,7 @@ test('planRebalanceToAllocations emits an empty plan when almost balanced', asyn
 test('planRebalanceToAllocations moves funds when needed', async t => {
   const plan = await planRebalanceToAllocations({
     ...plannerContext,
+    network: harden({ ...plannerContext.network, chains: noMinChainRecords }),
     targetAllocation: {
       USDN: 40n,
       USDNVault: 0n,
@@ -441,6 +446,7 @@ test('planRebalanceToAllocations moves funds when needed', async t => {
 test('planWithdrawFromAllocations withdraws and rebalances', async t => {
   const plan = await planWithdrawFromAllocations({
     ...plannerContext,
+    network: harden({ ...plannerContext.network, chains: noMinChainRecords }),
     targetAllocation: { USDN: 40n, Aave_Arbitrum: 40n, Compound_Arbitrum: 20n },
     currentBalances: { USDN: makeDeposit(2000n) },
     amount: makeDeposit(1000n),
@@ -453,6 +459,7 @@ test('planWithdrawFromAllocations withdraws and rebalances', async t => {
 test('planWithdrawFromAllocations can withdraw to an EVM account', async t => {
   const plan = await planWithdrawFromAllocations({
     ...plannerContext,
+    network: harden({ ...plannerContext.network, chains: noMinChainRecords }),
     targetAllocation: { USDN: 40n, Aave_Arbitrum: 40n, Compound_Arbitrum: 20n },
     currentBalances: { USDN: makeDeposit(2000n) },
     amount: makeDeposit(1000n),
@@ -466,6 +473,7 @@ test('planWithdrawFromAllocations can withdraw to an EVM account', async t => {
 test('planWithdrawFromAllocations considers former allocation targets', async t => {
   const plan = await planWithdrawFromAllocations({
     ...plannerContext,
+    network: harden({ ...plannerContext.network, chains: noMinChainRecords }),
     targetAllocation: { Compound_Arbitrum: 100n },
     currentBalances: {
       Aave_Avalanche: makeDeposit(1000n),
@@ -481,6 +489,7 @@ test('planWithdrawFromAllocations considers former allocation targets', async t 
 test('planWithdrawFromAllocations with no target preserves relative positions', async t => {
   const plan = await planWithdrawFromAllocations({
     ...plannerContext,
+    network: harden({ ...plannerContext.network, chains: noMinChainRecords }),
     targetAllocation: {},
     currentBalances: {
       '@Arbitrum': makeDeposit(200n),
@@ -498,6 +507,7 @@ test('planWithdrawFromAllocations with no target preserves relative positions', 
 test('planWithdrawFromAllocations with no target and no positions preserves relative amounts', async t => {
   const plan = await planWithdrawFromAllocations({
     ...plannerContext,
+    network: harden({ ...plannerContext.network, chains: noMinChainRecords }),
     targetAllocation: {},
     currentBalances: {
       '@Arbitrum': makeDeposit(1000n),
@@ -511,20 +521,25 @@ test('planWithdrawFromAllocations with no target and no positions preserves rela
 });
 
 test('planDepositToAllocations produces plan expected by contract', async t => {
-  const amount = makeDeposit(1000n);
-  const actual = await planDepositToAllocations({
+  const amount = makeDeposit(1_000_000n);
+  const plan = await planDepositToAllocations({
     ...plannerContext,
     targetAllocation: { USDN: 1n },
     currentBalances: {},
     amount,
   });
 
-  const expected = planUSDNDeposit(amount);
-  t.deepEqual(actual, expected);
+  const expectedFlow = [
+    { amount, src: '<Deposit>', dest: '@agoric' },
+    { amount, src: '@agoric', dest: '@noble' },
+    { amount, src: '@noble', dest: 'USDN', detail: { usdnOut: 999499n } },
+  ];
+  arrayIsLike(t, plan?.flow, expectedFlow);
+  t.deepEqual(plan, { flow: expectedFlow, order: undefined });
 });
 
 test('planDepositToAllocations can deposit from an EVM account', async t => {
-  const amount = makeDeposit(1000n);
+  const amount = makeDeposit(1_000_000n);
   const plan = await planDepositToAllocations({
     ...plannerContext,
     targetAllocation: { USDN: 1n },
