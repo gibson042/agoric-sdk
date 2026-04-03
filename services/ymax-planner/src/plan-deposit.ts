@@ -1,3 +1,4 @@
+import { fromUniqueEntries } from '@endo/common/from-unique-entries.js';
 import { assert, Fail, q, X } from '@endo/errors';
 
 import type { AssetPlaceRef } from '@aglocal/portfolio-contract/src/type-guards-steps.js';
@@ -21,6 +22,7 @@ import {
   fromTypedEntries,
   objectMap,
   objectMetaMap,
+  provideLazyMap,
   typedEntries,
 } from '@agoric/internal';
 import type { Caip10Record, CaipChainId } from '@agoric/orchestration';
@@ -60,16 +62,31 @@ const rejectUserInput = (details: ReturnType<typeof X> | string): never =>
 const isDust = (value: bigint): boolean =>
   -ACCOUNT_DUST_EPSILON < value && value < ACCOUNT_DUST_EPSILON;
 
+const chainRecordsByNetwork = new WeakMap<
+  NetworkSpec,
+  Map<AssetPlaceRef, ChainSpec>
+>();
+
 const getChainData = (
   place: AssetPlaceRef,
   network: NetworkSpec,
 ): ChainSpec => {
-  // TODO: memoize place->chainName and network->chains
-  const chainName = chainOf(place);
-  return (
-    network.chains.find(chain => chain.name === chainName) ||
-    Fail`No chain found for asset place ${q(place)}`
-  );
+  // Memoization of immutable NetworkSpec data: get a
+  // Map<AssetPlaceRef, ChainSpec> for `network`, initialized to the
+  // hubs for its `chains` and then lazily populated for each observed non-hub
+  // `place` by mapping to those hubs via chain name.
+  const chainRecordsMap = provideLazyMap(chainRecordsByNetwork, network, () => {
+    const mapEntries = network.chains.map(
+      chainRecord =>
+        [`@${chainRecord.name}`, chainRecord] as [AssetPlaceRef, ChainSpec],
+    );
+    return new Map(typedEntries(fromUniqueEntries(mapEntries)));
+  });
+  const chainData = provideLazyMap(chainRecordsMap, place, () => {
+    const chainName = chainOf(place);
+    return chainRecordsMap.get(`@${chainName}`);
+  });
+  return chainData || Fail`No chain found for asset place ${q(place)}`;
 };
 
 const isNonemptyPositionEntry = (entry: [AssetPlaceRef, NatValue]): boolean => {
