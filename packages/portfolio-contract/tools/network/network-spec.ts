@@ -43,28 +43,28 @@ export type FeeMode =
 
 // Chains (hubs)
 export interface ChainSpec {
-  name: SupportedChain;
+  readonly name: SupportedChain;
   /** how agoric reaches this chain: 'ibc' (noble) or 'axelar' (EVM) or 'local' (agoric) */
-  control: ControlProtocol;
+  readonly control: ControlProtocol;
   /** minimum delta amount for planned moves involving this chain */
-  deltaSoftMin?: NatValue;
+  readonly deltaSoftMin?: NatValue;
 }
 
 // Pools (leaves)
 export interface PoolSpec {
-  pool: PoolKey;
+  readonly pool: PoolKey;
   /** host chain of the corresponding instrument */
-  chain: SupportedChain;
+  readonly chain: SupportedChain;
   /** protocol of the corresponding instrument */
-  protocol: YieldProtocol;
+  readonly protocol: YieldProtocol;
 }
 
 /**
  * A +agoric local account or <Deposit>/<Cash> Agoric blockchain contract seat.
  */
 export interface LocalPlaceSpec {
-  id: '<Deposit>' | '<Cash>' | '+agoric';
-  chain: 'agoric';
+  readonly id: '<Deposit>' | '<Cash>' | '+agoric';
+  readonly chain: 'agoric';
 }
 
 /**
@@ -72,38 +72,38 @@ export interface LocalPlaceSpec {
  * endpoint.
  */
 export interface LinkSpec {
-  src: AssetPlaceRef;
-  dest: AssetPlaceRef;
+  readonly src: AssetPlaceRef;
+  readonly dest: AssetPlaceRef;
 
   /**
    * variable transfer fee in basis points to be applied against the transferred
    * amount of major units (e.g., USDC)
    */
-  variableFeeBps: number;
+  readonly variableFeeBps: number;
   /** flat-rate transfer fee in minor units (e.g., uusdc) */
-  flatFee?: NatValue;
+  readonly flatFee?: NatValue;
 
   /** expected transfer settlement time in seconds */
-  timeSec: number;
+  readonly timeSec: number;
   /** inclusive maximum transfer amount in minor units (e.g., uusdc) */
-  capacity?: NatValue;
+  readonly capacity?: NatValue;
   /** inclusive minimum transfer amount in minor units (e.g., uusdc) */
-  min?: NatValue;
+  readonly min?: NatValue;
 
   /** mechanism by which the transfer occurs */
-  transfer: TransferProtocol;
+  readonly transfer: TransferProtocol;
   /** designator for how fees apply to transactions over this link */
-  feeMode?: FeeMode;
+  readonly feeMode?: FeeMode;
 }
 
 /** Details of how chains/pools/etc. and how they connect. */
 export interface NetworkSpec {
-  debug?: boolean;
-  environment?: 'dev' | 'test' | 'prod';
+  readonly debug?: boolean;
+  readonly environment?: 'dev' | 'test' | 'prod';
 
-  chains: ChainSpec[];
-  pools: PoolSpec[];
-  localPlaces?: LocalPlaceSpec[];
-  links: LinkSpec[];
+  readonly chains: ChainSpec[];
+  readonly pools: PoolSpec[];
+  readonly localPlaces?: LocalPlaceSpec[];
+  readonly links: LinkSpec[];
 }
 export type { PoolKey };

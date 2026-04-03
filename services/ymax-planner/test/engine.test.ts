@@ -903,7 +903,12 @@ test.serial('unsolvable flow is rejected', testRejection, {
     Ethereum: AmountMath.make(depositBrand, 2_000_000n),
   },
   mutatePortfolioKit: kit => {
-    for (const link of kit.powers.network.links) link.min = 10_000_000n;
+    const replacementNetwork = { ...kit.powers.network };
+    replacementNetwork.links = replacementNetwork.links.map(link => ({
+      ...link,
+      min: 10_000_000n,
+    }));
+    kit.powers.network = harden(replacementNetwork);
   },
   flow: {
     type: 'withdraw',
