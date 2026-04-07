@@ -44,15 +44,19 @@ export type FeeMode =
 // Chains (hubs)
 export interface ChainSpec {
   name: SupportedChain;
-  control: ControlProtocol; // how agoric reaches this chain: 'ibc' (noble) or 'axelar' (EVM) or 'local' (agoric)
-  deltaSoftMin?: NatValue; // minimum delta amount for planned moves involving this chain
+  /** how agoric reaches this chain: 'ibc' (noble) or 'axelar' (EVM) or 'local' (agoric) */
+  control: ControlProtocol;
+  /** minimum delta amount for planned moves involving this chain */
+  deltaSoftMin?: NatValue;
 }
 
 // Pools (leaves)
 export interface PoolSpec {
-  pool: PoolKey; // e.g., 'Aave_Arbitrum', 'USDNVault'
-  chain: SupportedChain; // host chain of the pool
-  protocol: YieldProtocol; // reuse existing YieldProtocol keys
+  pool: PoolKey;
+  /** host chain of the corresponding instrument */
+  chain: SupportedChain;
+  /** protocol of the corresponding instrument */
+  protocol: YieldProtocol;
 }
 
 /**
@@ -71,18 +75,25 @@ export interface LinkSpec {
   src: AssetPlaceRef;
   dest: AssetPlaceRef;
 
-  // Fees
-  variableFeeBps: number; // basis points of amount
-  flatFee?: NatValue; // minor units in src fee token
+  /**
+   * variable transfer fee in basis points to be applied against the transferred
+   * amount of major units (e.g., USDC)
+   */
+  variableFeeBps: number;
+  /** flat-rate transfer fee in minor units (e.g., uusdc) */
+  flatFee?: NatValue;
 
-  // Performance & limits
-  timeSec: number; // latency
-  capacity?: NatValue; // optional throughput limit
-  min?: NatValue; // optional min transfer size
+  /** expected transfer settlement time in seconds */
+  timeSec: number;
+  /** inclusive maximum transfer amount in minor units (e.g., uusdc) */
+  capacity?: NatValue;
+  /** inclusive minimum transfer amount in minor units (e.g., uusdc) */
+  min?: NatValue;
 
-  // Protocols
-  transfer: TransferProtocol; // asset transfer mechanism
-  feeMode?: FeeMode; // how fees apply to transation using this link. See plan-solve.ts
+  /** mechanism by which the transfer occurs */
+  transfer: TransferProtocol;
+  /** designator for how fees apply to transactions over this link */
+  feeMode?: FeeMode;
 }
 
 /** Details of how chains/pools/etc. and how they connect. */
