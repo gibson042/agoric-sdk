@@ -59,8 +59,8 @@ export interface PoolSpec {
  * A +agoric local account or <Deposit>/<Cash> Agoric blockchain contract seat.
  */
 export interface LocalPlaceSpec {
-  id: AssetPlaceRef; // '<Deposit>' | '<Cash>' | '+agoric' | PoolKey (treated as local to its hub)
-  chain: SupportedChain; // typically 'agoric'
+  id: '<Deposit>' | '<Cash>' | '+agoric';
+  chain: 'agoric';
 }
 
 /**
