@@ -1,6 +1,5 @@
 import type { NatValue } from '@agoric/ertp';
 import type {
-  AxelarChain,
   YieldProtocol,
   SupportedChain,
 } from '@agoric/portfolio-api/src/constants.js';
@@ -45,12 +44,6 @@ export type FeeMode =
 // Chains (hubs)
 export interface ChainSpec {
   name: SupportedChain;
-  chainId?: string; // cosmos chain-id or network id
-  evmChainId?: number; // EVM numeric chain id if applicable
-  bech32Prefix?: string; // for Cosmos
-  axelarKey?: AxelarChain; // Axelar registry key if differs from name
-  feeDenom?: string; // e.g., 'ubld', 'uusdc'
-  gasDenom?: string; // if distinct from feeDenom
   control: ControlProtocol; // how agoric reaches this chain: 'ibc' (noble) or 'axelar' (EVM) or 'local' (agoric)
   deltaSoftMin?: NatValue; // minimum delta amount for planned moves involving this chain
 }
@@ -68,12 +61,6 @@ export interface PoolSpec {
 export interface LocalPlaceSpec {
   id: AssetPlaceRef; // '<Deposit>' | '<Cash>' | '+agoric' | PoolKey (treated as local to its hub)
   chain: SupportedChain; // typically 'agoric'
-  // Local edge fee/policy when connecting to the hub on the same chain
-  variableFeeBps?: number;
-  flatFee?: NatValue;
-  timeSec?: number;
-  capacity?: NatValue;
-  enabled?: boolean;
 }
 
 /**
@@ -96,10 +83,6 @@ export interface LinkSpec {
   // Protocols
   transfer: TransferProtocol; // asset transfer mechanism
   feeMode?: FeeMode; // how fees apply to transation using this link. See plan-solve.ts
-
-  // Policy / guardrails (optional)
-  // priority?: number; // tie-break hint
-  // enabled?: boolean; // admin toggle
 }
 
 /** Details of how chains/pools/etc. and how they connect. */
