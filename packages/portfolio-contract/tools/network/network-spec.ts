@@ -62,7 +62,9 @@ export interface PoolSpec {
   protocol: YieldProtocol; // reuse existing YieldProtocol keys
 }
 
-// Local places: seats (<Deposit>, <Cash>) and local accounts (+agoric), with local edge fees
+/**
+ * A +agoric local account or <Deposit>/<Cash> Agoric blockchain contract seat.
+ */
 export interface LocalPlaceSpec {
   id: AssetPlaceRef; // '<Deposit>' | '<Cash>' | '+agoric' | PoolKey (treated as local to its hub)
   chain: SupportedChain; // typically 'agoric'
@@ -74,7 +76,10 @@ export interface LocalPlaceSpec {
   enabled?: boolean;
 }
 
-// Directed inter-hub link
+/**
+ * A directed edge from one place to another, usually having at least one hub
+ * endpoint.
+ */
 export interface LinkSpec {
   src: AssetPlaceRef;
   dest: AssetPlaceRef;
@@ -97,7 +102,7 @@ export interface LinkSpec {
   // enabled?: boolean; // admin toggle
 }
 
-// Overall network definition
+/** Details of how chains/pools/etc. and how they connect. */
 export interface NetworkSpec {
   debug?: boolean;
   environment?: 'dev' | 'test' | 'prod';
