@@ -9,6 +9,7 @@ export default defineConfig({
   format: ['esm'],
   outDir: 'src/vendor/viem',
   target: 'es2020',
+  tsconfig: 'tsconfig.tsup.build.json',
   clean: true,
   dts: true,
   bundle: true,

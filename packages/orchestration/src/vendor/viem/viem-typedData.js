@@ -5,10 +5,10 @@ import {
   serializeTypedData,
   validateTypedData,
   verifyTypedData
-} from "./chunk-ZKSIP2AM.js";
+} from "./chunk-5E2C2UXP.js";
 import {
   isHex
-} from "./chunk-GCI53Z2G.js";
+} from "./chunk-25QYMKH4.js";
 import "./chunk-4VNS5WPM.js";
 
 // src/utils/viem-utils/hashTypedData.ts
