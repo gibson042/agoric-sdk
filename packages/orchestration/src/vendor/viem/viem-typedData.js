@@ -1,11 +1,12 @@
 import {
+  getTypesForEIP712Domain,
   hashStruct,
   hashTypedData,
   recoverTypedDataAddress,
   serializeTypedData,
   validateTypedData,
   verifyTypedData
-} from "./chunk-CRWLXHRL.js";
+} from "./chunk-5422ZTQA.js";
 import {
   isHex
 } from "./chunk-25QYMKH4.js";
@@ -42,6 +43,7 @@ function findTypeDependencies({
 }
 export {
   encodeType,
+  getTypesForEIP712Domain,
   hashStruct,
   hashTypedData,
   isHex,

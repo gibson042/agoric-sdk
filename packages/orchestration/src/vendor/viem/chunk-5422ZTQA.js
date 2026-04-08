@@ -316,6 +316,7 @@ async function verifyTypedData(parameters) {
 export {
   serializeTypedData,
   validateTypedData,
+  getTypesForEIP712Domain,
   hashTypedData,
   hashStruct,
   recoverTypedDataAddress,
