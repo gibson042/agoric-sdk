@@ -5,7 +5,7 @@ import {
   serializeTypedData,
   validateTypedData,
   verifyTypedData
-} from "./chunk-5E2C2UXP.js";
+} from "./chunk-CRWLXHRL.js";
 import {
   isHex
 } from "./chunk-25QYMKH4.js";
