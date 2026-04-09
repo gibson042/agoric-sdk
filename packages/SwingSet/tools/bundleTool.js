@@ -107,7 +107,9 @@ harden(defaultBundleToolEventSink);
 const inferLogPhase = args => {
   const joined = args.map(arg => String(arg)).join(' ');
   let phase = '[check]';
-  if (joined.includes(' add:') || joined.includes(' bundled ')) {
+  if (joined.includes(' add:')) {
+    phase = '[queue]';
+  } else if (joined.includes(' bundled ')) {
     phase = '[rebuilt]';
   }
   return phase;

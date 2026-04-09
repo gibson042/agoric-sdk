@@ -7,6 +7,12 @@ on:
   merge_group:
   push:
     branches: [master]
+  workflow_dispatch:
+    inputs:
+      boot_snapshot_cache_version:
+        description: Boot snapshot cache version override for manual reruns
+        required: false
+        default: '3'
   schedule:
     # We start a little earlier to give our build cache time to populate.
     - cron: '47 5 * * *'
@@ -19,6 +25,7 @@ env:
   AGORIC_AVA_USE_TAP: true
   NODE_V8_COVERAGE: coverage
   TEST_COLLECT: 'tee -a _testoutput.txt'
+  BOOT_SNAPSHOT_CACHE_VERSION: ${{ inputs.boot_snapshot_cache_version || '3' }}
 
 # this is required, since explicitly setting bash as shell enables pipefail, which is not
 # on by default.  This is required to fail correctly when teeing output to a file to collect
@@ -667,7 +674,7 @@ jobs:
   test-boot:
     # BEGIN-TEST-BOILERPLATE
     timeout-minutes: 40
-    needs: build
+    needs: [build]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -688,9 +695,81 @@ jobs:
         with:
           node-version: ${{ matrix.engine }}
       # END-TEST-BOILERPLATE
+      - name: Clear regenerated snapshot markers
+        run: rm -rf packages/boot/test/cache/runutils/.ci-regenerated
+      - name: Compute boot snapshot cache keys
+        id: boot-snapshot-keys
+        run: |
+          snapshot_keys="$(cd packages/boot && node --import ts-blank-space/register ./test/tools/create-runutils-snapshot.ts --cache-keys)"
+          SNAPSHOT_KEYS="$snapshot_keys" BOOT_SNAPSHOT_CACHE_VERSION="$BOOT_SNAPSHOT_CACHE_VERSION" node <<'EOF' >> "$GITHUB_OUTPUT"
+          const keys = JSON.parse(process.env.SNAPSHOT_KEYS);
+          const version = process.env.BOOT_SNAPSHOT_CACHE_VERSION;
+          for (const [name, fingerprint] of Object.entries(keys)) {
+            const outputName = name.replaceAll('-', '_');
+            console.log(
+              `${outputName}=boot-runutils-snapshot-${name}-${version}-${fingerprint}`,
+            );
+          }
+          EOF
+      - name: Restore demo-base snapshot cache
+        id: demo_base_cache
+        uses: actions/cache/restore@v4
+        with:
+          path: packages/boot/test/cache/runutils/demo-base
+          key: ${{ steps.boot-snapshot-keys.outputs.demo_base }}
+          restore-keys: |
+            boot-runutils-snapshot-demo-base-${{ env.BOOT_SNAPSHOT_CACHE_VERSION }}-
+      - name: Restore main-vaults-base snapshot cache
+        id: main_vaults_base_cache
+        uses: actions/cache/restore@v4
+        with:
+          path: packages/boot/test/cache/runutils/main-vaults-base
+          key: ${{ steps.boot-snapshot-keys.outputs.main_vaults_base }}
+          restore-keys: |
+            boot-runutils-snapshot-main-vaults-base-${{ env.BOOT_SNAPSHOT_CACHE_VERSION }}-
+      - name: Restore itest-vaults-base snapshot cache
+        id: itest_vaults_base_cache
+        uses: actions/cache/restore@v4
+        with:
+          path: packages/boot/test/cache/runutils/itest-vaults-base
+          key: ${{ steps.boot-snapshot-keys.outputs.itest_vaults_base }}
+          restore-keys: |
+            boot-runutils-snapshot-itest-vaults-base-${{ env.BOOT_SNAPSHOT_CACHE_VERSION }}-
+      - name: Restore orchestration-base snapshot cache
+        id: orchestration_base_cache
+        uses: actions/cache/restore@v4
+        with:
+          path: packages/boot/test/cache/runutils/orchestration-base
+          key: ${{ steps.boot-snapshot-keys.outputs.orchestration_base }}
+          restore-keys: |
+            boot-runutils-snapshot-orchestration-base-${{ env.BOOT_SNAPSHOT_CACHE_VERSION }}-
       - name: yarn test (boot)
         if: (success() || failure())
         run: cd packages/boot && yarn ${{ steps.vars.outputs.test }} | $TEST_COLLECT
+      - name: Save demo-base snapshot cache
+        if: always() && steps.demo_base_cache.outputs.cache-hit != 'true' && hashFiles('packages/boot/test/cache/runutils/.ci-regenerated/demo-base') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: packages/boot/test/cache/runutils/demo-base
+          key: ${{ steps.boot-snapshot-keys.outputs.demo_base }}
+      - name: Save main-vaults-base snapshot cache
+        if: always() && steps.main_vaults_base_cache.outputs.cache-hit != 'true' && hashFiles('packages/boot/test/cache/runutils/.ci-regenerated/main-vaults-base') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: packages/boot/test/cache/runutils/main-vaults-base
+          key: ${{ steps.boot-snapshot-keys.outputs.main_vaults_base }}
+      - name: Save itest-vaults-base snapshot cache
+        if: always() && steps.itest_vaults_base_cache.outputs.cache-hit != 'true' && hashFiles('packages/boot/test/cache/runutils/.ci-regenerated/itest-vaults-base') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: packages/boot/test/cache/runutils/itest-vaults-base
+          key: ${{ steps.boot-snapshot-keys.outputs.itest_vaults_base }}
+      - name: Save orchestration-base snapshot cache
+        if: always() && steps.orchestration_base_cache.outputs.cache-hit != 'true' && hashFiles('packages/boot/test/cache/runutils/.ci-regenerated/orchestration-base') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: packages/boot/test/cache/runutils/orchestration-base
+          key: ${{ steps.boot-snapshot-keys.outputs.orchestration_base }}
       - name: notify on failure
         if: failure() && github.event_name != 'pull_request'
         uses: ./.github/actions/notify-status

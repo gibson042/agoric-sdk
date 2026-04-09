@@ -7,9 +7,12 @@
   "repository": "https://github.com/Agoric/agoric-sdk",
   "scripts": {
     "build": "exit 0",
-    "clean": "rm -rf bundles/config.*",
+    "clean": "rm -rf bundles test/cache",
     "test": "ava",
     "test:xs": "SWINGSET_WORKER_TYPE=xs-worker ava test",
+    "make:runutils-snapshot": "node --import ts-blank-space/register ./test/tools/create-runutils-snapshot.ts",
+    "make:runutils-snapshots": "node --import ts-blank-space/register ./test/tools/create-runutils-snapshot.ts --all",
+    "print:runutils-snapshot-cache-key": "node --import ts-blank-space/register ./test/tools/create-runutils-snapshot.ts --cache-key",
     "lint-fix": "yarn lint:eslint --fix",
     "lint": "yarn run -T run-s --continue-on-error 'lint:*'",
     "lint:types": "yarn run -T tsc",
@@ -77,23 +80,6 @@
   ],
   "engines": {
     "node": "^20.9 || ^22.11"
-  },
-  "ava": {
-    "extensions": {
-      "js": true,
-      "ts": "module"
-    },
-    "files": [
-      "test/**/*.test.*"
-    ],
-    "nodeArguments": [
-      "--loader=ts-blank-space/register",
-      "--no-warnings"
-    ],
-    "require": [
-      "@endo/init/debug.js"
-    ],
-    "timeout": "20m"
   },
   "typeCoverage": {
     "atLeast": 89.91

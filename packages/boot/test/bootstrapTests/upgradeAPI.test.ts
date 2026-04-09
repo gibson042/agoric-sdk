@@ -14,6 +14,7 @@ import {
   makeGovernanceDriver,
   makeWalletFactoryDriver,
 } from '../../tools/drivers.js';
+import { loadOrCreateRunUtilsSnapshot } from '../tools/runutils-snapshots.js';
 
 const dirname = path.dirname(new URL(import.meta.url).pathname);
 
@@ -110,8 +111,13 @@ const PLATFORM_CONFIG = '@agoric/vm-config/decentral-main-vaults-config.json';
 
 const makeDefaultTestContext = async t => {
   console.time('DefaultTestContext');
+  const snapshot = await loadOrCreateRunUtilsSnapshot(
+    'main-vaults-base',
+    t.log,
+  );
   const swingsetTestKit = await makeSwingsetTestKit(t.log, undefined, {
     configSpecifier: PLATFORM_CONFIG,
+    snapshot,
   });
 
   const { runUtils, storage, controller } = swingsetTestKit;
