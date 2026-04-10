@@ -36,6 +36,7 @@ import { makePassableKit } from '@endo/marshal';
 import { passStyleOf, type Passable, type PureData } from '@endo/pass-style';
 import { M } from '@endo/patterns';
 import type { Address } from 'abitype';
+import type { RecoverTypedDataAddressParameters } from 'viem';
 import type { PublishStatus } from './portfolio.contract.ts';
 import type { PortfolioKit } from './portfolio.exo.ts';
 
@@ -419,7 +420,7 @@ export const prepareEVMWalletMessageHandler = (
     getWalletForAddress: (address: Address) => EVMWallet;
   },
 ) => {
-  const { extractOperationDetailsFromSignedData } = makeEVMHandlerUtils({
+  const { extractOperationDetailsFromDataWithAddress } = makeEVMHandlerUtils({
     isHex,
     hashStruct,
     recoverTypedDataAddress,
@@ -458,17 +459,25 @@ export const prepareEVMWalletMessageHandler = (
         return vowTools.asVow(async () => {
           trace('handleMessage', messageData);
 
+          // Extracts the owner address from the signature using ECDSA recovery
           // Resolves immediately on-chain since all deps are bundled
-          // This validates signature, but not the content of the payload
-          // e.g. verifyingContract or permit spender
-          // The domain will be validated by handleOperation
-          const details =
-            await extractOperationDetailsFromSignedData(messageData);
+          const walletOwner = await recoverTypedDataAddress(
+            messageData as RecoverTypedDataAddressParameters,
+          );
+
+          const signedDataWithAddress = {
+            ...messageData,
+            address: walletOwner,
+          };
+
+          // This does not perform any signature validation
+          const details = extractOperationDetailsFromDataWithAddress(
+            signedDataWithAddress,
+          );
 
           trace('extracted details', details);
 
-          const { evmWalletAddress, nonce, deadline, ...operationDetails } =
-            details;
+          const { nonce, deadline, ...operationDetails } = details;
 
           // Resolves promptly
           const { absValue: localChainTime } =
@@ -483,12 +492,12 @@ export const prepareEVMWalletMessageHandler = (
 
           deadline < localChainTime + MAX_DEADLINE_OFFSET ||
             Fail`Deadline too far in the future: ${q(deadline)} vs ${q(localChainTime)}`;
-          insertNonce({ walletOwner: evmWalletAddress, nonce, deadline });
+          insertNonce({ walletOwner, nonce, deadline });
 
-          const wallet = getWalletForAddress(evmWalletAddress);
+          const wallet = getWalletForAddress(walletOwner);
           // Resolves promptly
           const walletNode: Remote<StorageNode> =
-            await E(storageNode).makeChildNode(evmWalletAddress);
+            await E(storageNode).makeChildNode(walletOwner);
 
           harden(operationDetails);
 
@@ -497,7 +506,7 @@ export const prepareEVMWalletMessageHandler = (
           return handleOperation({
             wallet,
             storageNode: walletNode,
-            address: evmWalletAddress,
+            address: walletOwner,
             operationDetails,
             nonce,
             deadline,
