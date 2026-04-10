@@ -27,7 +27,7 @@ import { makePortfolioQuery } from '@aglocal/portfolio-contract/tools/portfolio-
 import type { VstorageKit } from '@agoric/client-utils';
 import { AmountMath } from '@agoric/ertp';
 import type { Brand, NatAmount } from '@agoric/ertp/src/types.js';
-import { objectMap } from '@agoric/internal';
+import { fromTypedEntries, objectMap } from '@agoric/internal';
 import { arrayIsLike } from '@agoric/internal/tools/ava-assertions.js';
 import { Far } from '@endo/pass-style';
 import PROD_NETWORK from '@aglocal/portfolio-contract/tools/network/prod-network.ts';
@@ -319,6 +319,37 @@ test('handleDeposit handles missing targetAllocation gracefully', async t => {
   t.deepEqual(result, { policyVersion: 4, rebalanceCount: 0, plan: emptyPlan });
 });
 
+test('targetAllocation must have positive total weight', async t => {
+  const badContext = {
+    ...plannerContext,
+    targetAllocation: { Aave_Arbitrum: 0n, Compound_Arbitrum: 0n },
+    currentBalances: {},
+  };
+  const expectation = {
+    message: 'Total target allocation weights must be positive.',
+  };
+  const amount = makeDeposit(scale6(1));
+  await t.throwsAsync(
+    planRebalanceToAllocations(badContext),
+    expectation,
+    'planRebalanceToAllocations',
+  );
+  await t.throwsAsync(
+    planDepositToAllocations({ ...badContext, amount }),
+    expectation,
+    'planDepositToAllocations',
+  );
+  await t.throwsAsync(
+    planWithdrawFromAllocations({
+      ...badContext,
+      currentBalances: { Aave_Arbitrum: amount, Compound_Arbitrum: amount },
+      amount,
+    }),
+    expectation,
+    'planWithdrawFromAllocations',
+  );
+});
+
 test('handleDeposit handles different position types correctly', async t => {
   const deposit = makeDeposit(1_000_000n);
   const portfolioKey = 'test.portfolios.portfolio1' as const;
@@ -459,6 +490,18 @@ test('planWithdrawFromAllocations withdraws and rebalances', async t => {
   t.snapshot(plan && readableSteps(plan.flow, depositBrand), 'steps');
   t.snapshot(plan?.order && readableOrder(plan.order), 'step dependencies');
   t.snapshot(plan, 'raw plan');
+});
+
+test('planWithdrawFromAllocations rejects overdrafts', async t => {
+  await t.throwsAsync(
+    planWithdrawFromAllocations({
+      ...plannerContext,
+      targetAllocation: { USDN: 100n },
+      currentBalances: { USDN: makeDeposit(2000n) },
+      amount: makeDeposit(3000n),
+    }),
+    { message: 'Insufficient funds for withdrawal.' },
+  );
 });
 
 test('planWithdrawFromAllocations can withdraw to an EVM account', async t => {
@@ -872,7 +915,7 @@ test('planRebalanceToAllocations regression - CCTPv2 multi-source rebalance', as
     Aave_Optimism: 5.99,
     Aave_Avalanche: 2.6,
     Beefy_re7_Avalanche: 0.008,
-  };
+  } satisfies Partial<Record<AssetPlaceRef, number>>;
   const makeBalances = (scale: number) =>
     objectMap(balancesTemplate, v => makeDeposit(BigInt(v * 1e6 * scale)));
 
@@ -1057,6 +1100,45 @@ test('planRebalanceToAllocations regression - CCTPv2 multi-source rebalance', as
       { amount, src: 'Aave_Ethereum', dest: '@Ethereum' },
       { amount, src: '@Ethereum', dest: '@agoric' },
       { amount, src: '@agoric', dest: '<Cash>' },
+    ]);
+  });
+
+  test('planWithdrawFromAllocations works despite small deltas (amount > first currentBalances entry)', async t => {
+    const plan = await planWithdrawFromAllocations({
+      ...plannerContext,
+      network: expensiveEthNetwork,
+      targetAllocation,
+      currentBalances: fromTypedEntries(
+        Object.keys(balancesTemplate)
+          .reverse()
+          .map((place: AssetPlaceRef, idx: number) => [
+            place,
+            makeDeposit(scale6(idx * 0.1)),
+          ]),
+      ),
+      amount: makeDeposit(scale6(0.8)),
+    });
+
+    // All deltas are too small, so the $0.80 withdrawal is pulled from
+    // descending balances (Aave_{Ethereum,Base,Optimism} at
+    // [$0.40, $0.30, $0.20], with only $0.10 needed from Aave_Optimism).
+    // t.log(readableSteps(plan.flow, depositBrand));
+    arrayIsLike(t, plan?.flow, [
+      { src: 'Aave_Base', dest: '@Base', amount: makeDeposit(scale6(0.3)) },
+      { src: '@Base', dest: '@agoric', amount: makeDeposit(scale6(0.3)) },
+      {
+        src: 'Aave_Ethereum',
+        dest: '@Ethereum',
+        amount: makeDeposit(scale6(0.4)),
+      },
+      { src: '@Ethereum', dest: '@agoric', amount: makeDeposit(scale6(0.4)) },
+      {
+        src: 'Aave_Optimism',
+        dest: '@Optimism',
+        amount: makeDeposit(scale6(0.1)),
+      },
+      { src: '@Optimism', dest: '@agoric', amount: makeDeposit(scale6(0.1)) },
+      { src: '@agoric', dest: '<Cash>', amount: makeDeposit(scale6(0.8)) },
     ]);
   });
 }
