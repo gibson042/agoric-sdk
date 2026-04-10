@@ -752,7 +752,7 @@ export const makePermitDetails = (
   const token = overrides.token ?? contractsMock[chain].usdc;
   const spender = overrides.spender ?? contractsMock[chain].depositFactory;
   const chainId =
-    overrides.chainId ?? Number(axelarCCTPConfig[chain].reference);
+    overrides.chainId ?? BigInt(axelarCCTPConfig[chain].reference);
 
   const basePayload: PermitDetails['permit2Payload'] = {
     permit: {

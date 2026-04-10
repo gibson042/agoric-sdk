@@ -2344,7 +2344,7 @@ test('openPortfolio from EVM with Permit2 completes a deposit flow', async t => 
   const mixedCaseSpender =
     contractsMock.Arbitrum.depositFactory.toUpperCase() as Address;
   const permitDetails: PermitDetails = {
-    chainId: Number(axelarCCTPConfig.Arbitrum.reference),
+    chainId: BigInt(axelarCCTPConfig.Arbitrum.reference),
     token: contractsMock.Arbitrum.usdc,
     amount: 1_000_000_000n,
     spender: mixedCaseSpender,

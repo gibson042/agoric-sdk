@@ -56,7 +56,7 @@ export type PermitWitnessTransferFromPayload = AbiParameterToPrimitiveType<{
 }>;
 
 export type PermitDetails = {
-  chainId: NonNullable<TypedDataDomain['chainId']>;
+  chainId: bigint;
   token: Address;
   amount: bigint;
   spender: Address;
@@ -221,8 +221,10 @@ export const makeEVMHandlerUtils = (viemUtils: {
       signature,
     };
 
+    const chainId = BigInt(permitData.domain!.chainId!);
+
     const details: PermitDetails = {
-      chainId: permitData.domain!.chainId!,
+      chainId,
       token: permit.permitted.token,
       amount: permit.permitted.amount,
       permit2Payload,
