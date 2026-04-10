@@ -6,20 +6,16 @@ import { makePromiseKit } from '@endo/promise-kit';
 import { Far } from '@endo/marshal';
 import { makeScalarMapStore } from '@agoric/store';
 import { makeScalarBigMapStore } from '@agoric/vat-data';
-import { unsafeSharedBundleCache } from '@agoric/swingset-vat/tools/bundleTool.js';
-import { zoeSourceSpecRegistry } from '../source-spec-registry.js';
-
-import { evalContractBundle } from '../src/contractFacet/evalContractCode.js';
 import { handlePKitWarning } from '../src/handleWarning.js';
 import { makeHandle } from '../src/makeHandle.js';
+import { buildTestRootObject } from './testVatRoot.js';
 
 /**
  * @import {MapStore} from '@agoric/swingset-liveslots';
  * @import {BundleCap, BundleID, EndoZipBase64Bundle, TestBundle} from '@agoric/swingset-vat';
+ * @import {DynamicVatOptions} from '@agoric/swingset-vat';
+ * @import {CreateVatResults} from '@agoric/swingset-vat';
  */
-
-const bundleCache = await unsafeSharedBundleCache;
-const { zcfBundle } = await bundleCache.loadRegistry(zoeSourceSpecRegistry);
 
 // this simulates a bundlecap, which is normally a swingset "device node"
 /** @type {() => BundleCap} */
@@ -54,6 +50,8 @@ function makeFakeVatAdmin(testContextSetter = undefined, makeRemote = x => x) {
     }),
     testJigSetter: testContextSetter,
   };
+  /** @type {Array<ReturnType<typeof makePromiseKit>>} */
+  const reservedTestJigs = [];
 
   // This is explicitly intended to be mutable so that
   // test-only state can be provided from contracts
@@ -81,8 +79,11 @@ function makeFakeVatAdmin(testContextSetter = undefined, makeRemote = x => x) {
     getBundleIDByName: name => {
       return Promise.resolve().then(() => nameToBundleID.get(name));
     },
+    /** @type {(bundleCap: BundleCap, options?: Partial<DynamicVatOptions>) => Promise<CreateVatResults>} */
     createVat: (bundleCap, { vatParameters = {} } = {}) => {
       bundleCap === zcfBundleCap || Fail`fakeVatAdmin only knows ZCF`;
+      const testJigKit = reservedTestJigs.shift() || makePromiseKit();
+      handlePKitWarning(testJigKit);
       const exitKit = makePromiseKit();
       handlePKitWarning(exitKit);
       const exitVat = completion => {
@@ -93,6 +94,10 @@ function makeFakeVatAdmin(testContextSetter = undefined, makeRemote = x => x) {
       };
       const vpow = harden({
         ...fakeVatPowers,
+        testJigSetter: jig => {
+          testContextSetter?.(jig);
+          testJigKit.resolve(jig);
+        },
         exitVat,
       });
       const vatBaggage = makeScalarBigMapStore('fake vat baggage', {
@@ -109,11 +114,7 @@ function makeFakeVatAdmin(testContextSetter = undefined, makeRemote = x => x) {
       //   }),
       // );
       const rootP = makeRemote(
-        E(evalContractBundle(zcfBundle)).buildRootObject(
-          vpow,
-          vatParameters,
-          vatBaggage,
-        ),
+        buildTestRootObject(vpow, vatParameters, vatBaggage),
       );
       return E.when(rootP, root =>
         harden({
@@ -162,6 +163,12 @@ function makeFakeVatAdmin(testContextSetter = undefined, makeRemote = x => x) {
       const bid = vatAdminState.getBundleID(base, bundle);
       vatAdminState.installBundle(bid, bundle);
       return bid;
+    },
+    prepareJig: () => {
+      const jigKit = makePromiseKit();
+      handlePKitWarning(jigKit);
+      reservedTestJigs.push(jigKit);
+      return jigKit.promise;
     },
     /**
      * @param {string} id

@@ -51,9 +51,13 @@ const MsgSwapResponse = CodecHelper(MsgSwapResponseType);
 /** address of orch LCA for portfolio0, after contract/fee LCA */
 export const portfolio0lcaOrch = makeTestAddress(1); // agoric1q...c09z0g';
 
-/** Private key for EVM address 0x3f4ae329c7fb2d39c7a0d786df25c32a45691f88 */
+/** Private key for EVM address 0x3F4AE329c7FB2d39C7a0d786df25c32a45691f88 */
 export const evmTrader0PrivateKey =
   '0x59c6995e998f97a5a0044966f094538c5f68e0c4e42e20b1e6f8a9a4f9f3d0b0' as Hex;
+
+/** Private key for EVM address 0x86F960bcCABc12306aEf894AdF52c5a146f47B90 */
+export const evmTrader1PrivateKey =
+  '0x8b3a350cf5c34c9194ca3a545d6fcf38e6f2d5d63f8f87be0c1e98e4b8c8f6d1' as Hex;
 
 export const prepareMockOrchAccounts = (
   zone: Zone,
