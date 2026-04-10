@@ -388,7 +388,7 @@ const computeWeightedTargets = <
       const weightsDesc = natEntriesDesc(typedEntries(prunedWeights) as PW[]);
       for (const [key, _w] of weightsDesc) {
         const a = getOwn(currentValues, key) ?? 0n;
-        const v = (draft[key] ?? 0n) + remainder;
+        const v = (getOwn(draft, key) ?? 0n) + remainder;
         if (v === a || !isDust(v - a)) {
           draft[key] = v;
           remainder = 0n;
