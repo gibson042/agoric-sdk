@@ -92,6 +92,18 @@ export const makeEVMHandlerUtils = (viemUtils: {
     encodeType,
   } = viemUtils;
 
+  for (const util of [
+    isHex,
+    hashStruct,
+    recoverTypedDataAddress,
+    validateTypedData,
+    encodeType,
+  ]) {
+    if (typeof util !== 'function') {
+      throw new Error(`Expected viemUtils.${util} to be a function`);
+    }
+  }
+
   const getPermit2WitnessTypeString = makeWitnessTypeStringExtractor({
     encodeType,
   });
