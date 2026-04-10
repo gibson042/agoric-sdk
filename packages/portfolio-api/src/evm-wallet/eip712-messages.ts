@@ -17,7 +17,6 @@ import type {
   TypedDataToPrimitiveTypes,
 } from 'abitype';
 import type { TypedDataDefinition } from 'viem';
-import { Fail, q } from '@endo/errors';
 import type { TypedDataParameter } from '@agoric/orchestration/src/utils/abitype.js';
 import {
   type Witness,
@@ -26,6 +25,7 @@ import {
   makeWitness,
   TokenPermissionsComponents,
 } from '@agoric/orchestration/src/utils/permit2.js';
+import { sameEvmAddress } from '@agoric/orchestration/src/utils/address.js';
 
 const YMAX_DOMAIN_NAME = 'Ymax';
 const YMAX_DOMAIN_VERSION = '1';
@@ -295,26 +295,37 @@ export function validateYmaxDomainBase(
 
 export function validateYmaxDomain(
   domain: TypedDataDomain,
-  validContractAddresses?: Record<number | string, Address> | undefined,
+  validContractAddresses?:
+    | Partial<Record<number | string, Address>>
+    | undefined,
 ): asserts domain is YmaxFullDomain {
   const baseDomain = domain;
   validateYmaxDomainBase(baseDomain);
 
-  typeof domain.chainId === 'bigint' || Fail`Chain ID expected to be a BigInt`;
+  if (
+    typeof domain.chainId !== 'bigint' ||
+    domain.verifyingContract === undefined
+  ) {
+    throw new Error(`Ymax domain must include chain ID and verifying contract`);
+  }
 
   if (validContractAddresses) {
     const chainIdStr = String(domain.chainId);
 
-    chainIdStr in validContractAddresses ||
-      Fail`Unknown chain ID in Ymax domain: ${q(domain.chainId)}`;
+    if (!(chainIdStr in validContractAddresses)) {
+      throw new Error(`Unknown chain ID in Ymax domain: ${domain.chainId}`);
+    }
 
-    domain.verifyingContract === validContractAddresses[chainIdStr] ||
-      Fail`Invalid verifying contract for chain ID ${q(domain.chainId)}: ${q(
+    if (
+      !sameEvmAddress(
         domain.verifyingContract,
-      )} (expected ${q(validContractAddresses[chainIdStr])})`;
-  } else {
-    (domain.chainId !== undefined && domain.verifyingContract !== undefined) ||
-      Fail`Ymax domain must include chainId and verifyingContract`;
+        validContractAddresses[chainIdStr],
+      )
+    ) {
+      throw new Error(
+        `Invalid verifying contract for chain ID ${domain.chainId}: ${domain.verifyingContract} (expected ${validContractAddresses[chainIdStr]})`,
+      );
+    }
   }
 
   // XXX: check no extra fields?
