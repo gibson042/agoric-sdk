@@ -61,6 +61,7 @@
     "@cosmjs/encoding": "^0.36.0",
     "@cosmjs/proto-signing": "^0.36.0",
     "@cosmjs/stargate": "^0.36.0",
+    "@endo/common": "^1.2.13",
     "@endo/errors": "^1.2.13",
     "@endo/init": "^1.1.12",
     "@endo/lockdown": "^1.0.18",

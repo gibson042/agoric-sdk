@@ -5,10 +5,14 @@ import {
   ACCOUNT_DUST_EPSILON,
   CaipChainIds,
   SupportedChain,
+  type AssetPlaceRef,
   type InterChainAccountRef,
   type StatusFor,
 } from '@agoric/portfolio-api';
-import { planUSDNDeposit } from '@aglocal/portfolio-contract/test/mocks.js';
+import type {
+  PortfolioPublishedPathTypes,
+  TargetAllocation,
+} from '@aglocal/portfolio-contract/src/type-guards.ts';
 import {
   readableSteps,
   readableOrder,
@@ -20,18 +24,16 @@ import type {
 } from '@aglocal/portfolio-contract/tools/network/network-spec.js';
 import type { GasEstimator } from '@aglocal/portfolio-contract/tools/plan-solve.ts';
 import { makePortfolioQuery } from '@aglocal/portfolio-contract/tools/portfolio-actors.js';
-import type { PortfolioPublishedPathTypes } from '@aglocal/portfolio-contract/src/type-guards.ts';
 import type { VstorageKit } from '@agoric/client-utils';
 import { AmountMath } from '@agoric/ertp';
 import type { Brand, NatAmount } from '@agoric/ertp/src/types.js';
-import { objectMap } from '@agoric/internal';
+import { fromTypedEntries, objectMap } from '@agoric/internal';
 import { arrayIsLike } from '@agoric/internal/tools/ava-assertions.js';
 import { Far } from '@endo/pass-style';
 import PROD_NETWORK from '@aglocal/portfolio-contract/tools/network/prod-network.ts';
 import type { EvmAddress } from '@agoric/fast-usdc';
 import { USDN } from '../src/cosmos-rest-client.ts';
 import {
-  getCurrentBalances,
   getNonDustBalances,
   planDepositToAllocations,
   planRebalanceToAllocations,
@@ -51,8 +53,13 @@ const makeDeposit = value => AmountMath.make(depositBrand, value);
 
 const feeBrand = Far('fee brand (BLD)') as Brand<'nat'>;
 
+const scale6 = (x: number) => {
+  assert.typeof(x, 'number');
+  return BigInt(Math.round(x * 1e6));
+};
+
 const plannerContext: Omit<
-  PlannerContext,
+  PlannerContext<AssetPlaceRef, keyof TargetAllocation>,
   'currentBalances' | 'targetAllocation'
 > = {
   brand: depositBrand,
@@ -60,6 +67,11 @@ const plannerContext: Omit<
   feeBrand,
   gasEstimator: mockGasEstimator,
 };
+
+const noMinChainRecords = plannerContext.network.chains.map(chain => ({
+  ...chain,
+  deltaSoftMin: 0n,
+}));
 
 const emptyPlan = harden({ flow: [], order: undefined });
 
@@ -93,7 +105,7 @@ const handleDeposit = async (
   if (!targetAllocation) {
     return { policyVersion, rebalanceCount, plan: emptyPlan };
   }
-  const currentBalances = await getCurrentBalances(status, amount.brand, {
+  const currentBalances = await getNonDustBalances(status, amount.brand, {
     spectrumChainIds: powers.spectrumChainIds || {},
     usdcTokensByChain: powers.usdcTokensByChain || {},
     evmTokenAddresses: powers.evmTokenAddresses || {},
@@ -307,6 +319,37 @@ test('handleDeposit handles missing targetAllocation gracefully', async t => {
   t.deepEqual(result, { policyVersion: 4, rebalanceCount: 0, plan: emptyPlan });
 });
 
+test('targetAllocation must have positive total weight', async t => {
+  const badContext = {
+    ...plannerContext,
+    targetAllocation: { Aave_Arbitrum: 0n, Compound_Arbitrum: 0n },
+    currentBalances: {},
+  };
+  const expectation = {
+    message: 'Total target allocation weights must be positive.',
+  };
+  const amount = makeDeposit(scale6(1));
+  await t.throwsAsync(
+    planRebalanceToAllocations(badContext),
+    expectation,
+    'planRebalanceToAllocations',
+  );
+  await t.throwsAsync(
+    planDepositToAllocations({ ...badContext, amount }),
+    expectation,
+    'planDepositToAllocations',
+  );
+  await t.throwsAsync(
+    planWithdrawFromAllocations({
+      ...badContext,
+      currentBalances: { Aave_Arbitrum: amount, Compound_Arbitrum: amount },
+      amount,
+    }),
+    expectation,
+    'planWithdrawFromAllocations',
+  );
+});
+
 test('handleDeposit handles different position types correctly', async t => {
   const deposit = makeDeposit(1_000_000n);
   const portfolioKey = 'test.portfolios.portfolio1' as const;
@@ -377,7 +420,7 @@ test('handleDeposit handles different position types correctly', async t => {
         [compoundEthereumAddress]: 75_000n,
       },
     },
-    TEST_NETWORK,
+    harden({ ...plannerContext.network, chains: noMinChainRecords }),
   );
   const plan = result?.plan;
   t.snapshot(plan && readableSteps(plan.flow, depositBrand), 'steps');
@@ -422,6 +465,7 @@ test('planRebalanceToAllocations emits an empty plan when almost balanced', asyn
 test('planRebalanceToAllocations moves funds when needed', async t => {
   const plan = await planRebalanceToAllocations({
     ...plannerContext,
+    network: harden({ ...plannerContext.network, chains: noMinChainRecords }),
     targetAllocation: {
       USDN: 40n,
       USDNVault: 0n,
@@ -438,6 +482,7 @@ test('planRebalanceToAllocations moves funds when needed', async t => {
 test('planWithdrawFromAllocations withdraws and rebalances', async t => {
   const plan = await planWithdrawFromAllocations({
     ...plannerContext,
+    network: harden({ ...plannerContext.network, chains: noMinChainRecords }),
     targetAllocation: { USDN: 40n, Aave_Arbitrum: 40n, Compound_Arbitrum: 20n },
     currentBalances: { USDN: makeDeposit(2000n) },
     amount: makeDeposit(1000n),
@@ -447,9 +492,22 @@ test('planWithdrawFromAllocations withdraws and rebalances', async t => {
   t.snapshot(plan, 'raw plan');
 });
 
+test('planWithdrawFromAllocations rejects overdrafts', async t => {
+  await t.throwsAsync(
+    planWithdrawFromAllocations({
+      ...plannerContext,
+      targetAllocation: { USDN: 100n },
+      currentBalances: { USDN: makeDeposit(2000n) },
+      amount: makeDeposit(3000n),
+    }),
+    { message: 'Insufficient funds for withdrawal.' },
+  );
+});
+
 test('planWithdrawFromAllocations can withdraw to an EVM account', async t => {
   const plan = await planWithdrawFromAllocations({
     ...plannerContext,
+    network: harden({ ...plannerContext.network, chains: noMinChainRecords }),
     targetAllocation: { USDN: 40n, Aave_Arbitrum: 40n, Compound_Arbitrum: 20n },
     currentBalances: { USDN: makeDeposit(2000n) },
     amount: makeDeposit(1000n),
@@ -463,6 +521,7 @@ test('planWithdrawFromAllocations can withdraw to an EVM account', async t => {
 test('planWithdrawFromAllocations considers former allocation targets', async t => {
   const plan = await planWithdrawFromAllocations({
     ...plannerContext,
+    network: harden({ ...plannerContext.network, chains: noMinChainRecords }),
     targetAllocation: { Compound_Arbitrum: 100n },
     currentBalances: {
       Aave_Avalanche: makeDeposit(1000n),
@@ -478,6 +537,7 @@ test('planWithdrawFromAllocations considers former allocation targets', async t 
 test('planWithdrawFromAllocations with no target preserves relative positions', async t => {
   const plan = await planWithdrawFromAllocations({
     ...plannerContext,
+    network: harden({ ...plannerContext.network, chains: noMinChainRecords }),
     targetAllocation: {},
     currentBalances: {
       '@Arbitrum': makeDeposit(200n),
@@ -495,6 +555,7 @@ test('planWithdrawFromAllocations with no target preserves relative positions', 
 test('planWithdrawFromAllocations with no target and no positions preserves relative amounts', async t => {
   const plan = await planWithdrawFromAllocations({
     ...plannerContext,
+    network: harden({ ...plannerContext.network, chains: noMinChainRecords }),
     targetAllocation: {},
     currentBalances: {
       '@Arbitrum': makeDeposit(1000n),
@@ -508,20 +569,25 @@ test('planWithdrawFromAllocations with no target and no positions preserves rela
 });
 
 test('planDepositToAllocations produces plan expected by contract', async t => {
-  const amount = makeDeposit(1000n);
-  const actual = await planDepositToAllocations({
+  const amount = makeDeposit(1_000_000n);
+  const plan = await planDepositToAllocations({
     ...plannerContext,
     targetAllocation: { USDN: 1n },
     currentBalances: {},
     amount,
   });
 
-  const expected = planUSDNDeposit(amount);
-  t.deepEqual(actual, expected);
+  const expectedFlow = [
+    { amount, src: '<Deposit>', dest: '@agoric' },
+    { amount, src: '@agoric', dest: '@noble' },
+    { amount, src: '@noble', dest: 'USDN', detail: { usdnOut: 999499n } },
+  ];
+  arrayIsLike(t, plan?.flow, expectedFlow);
+  t.deepEqual(plan, { flow: expectedFlow, order: undefined });
 });
 
 test('planDepositToAllocations can deposit from an EVM account', async t => {
-  const amount = makeDeposit(1000n);
+  const amount = makeDeposit(1_000_000n);
   const plan = await planDepositToAllocations({
     ...plannerContext,
     targetAllocation: { USDN: 1n },
@@ -823,3 +889,256 @@ test('planRebalanceToAllocations regression - CCTPv2 multi-source rebalance', as
 
   t.snapshot(plan, 'CCTPv2 multi-source rebalance');
 });
+
+{
+  // Create scenarios where a 10 USDC minimum delta for Ethereum and the default
+  // of 1 USDC elsewhere suppress changes until balances are scaled up.
+  const chainRecords = plannerContext.network.chains.map(chain =>
+    chain.name === 'Ethereum'
+      ? { ...chain, deltaSoftMin: 100_000_000n }
+      : chain,
+  );
+  const expensiveEthNetwork = harden({
+    ...plannerContext.network,
+    chains: chainRecords,
+  });
+  const targetAllocation = {
+    Aave_Ethereum: 880n,
+    Aave_Base: 50n,
+    Aave_Optimism: 50n,
+    Aave_Avalanche: 20n,
+    Beefy_re7_Avalanche: 0n,
+  };
+  const balancesTemplate = {
+    Aave_Ethereum: 12.5,
+    Aave_Base: 4.01,
+    Aave_Optimism: 5.99,
+    Aave_Avalanche: 2.6,
+    Beefy_re7_Avalanche: 0.008,
+  } satisfies Partial<Record<AssetPlaceRef, number>>;
+  const makeBalances = (scale: number) =>
+    objectMap(balancesTemplate, v => makeDeposit(BigInt(v * 1e6 * scale)));
+
+  test('planRebalanceToAllocations suppresses small deltas', async t => {
+    const plan = await planRebalanceToAllocations({
+      ...plannerContext,
+      network: expensiveEthNetwork,
+      targetAllocation,
+      currentBalances: makeBalances(1),
+    });
+
+    // All deltas are too small.
+    arrayIsLike(t, plan?.flow, []);
+  });
+
+  test('planDepositToAllocations suppresses small deltas', async t => {
+    const amount = makeDeposit(scale6(0.9));
+    const plan = await planDepositToAllocations({
+      ...plannerContext,
+      network: expensiveEthNetwork,
+      targetAllocation,
+      currentBalances: objectMap(makeBalances(1), (amt, place) =>
+        place === 'Aave_Avalanche' ? AmountMath.subtract(amt, amount) : amt,
+      ),
+      amount,
+    });
+
+    // All deltas are too small.
+    arrayIsLike(t, plan?.flow, []);
+  });
+
+  test('planRebalanceToAllocations suppresses small deltas, 10x', async t => {
+    const plan = await planRebalanceToAllocations({
+      ...plannerContext,
+      network: expensiveEthNetwork,
+      targetAllocation,
+      currentBalances: makeBalances(10),
+    });
+
+    // Deltas for the largest and smallest weights are too small, but relative
+    // adjustment between Aave_{Avalanche,Optimism,Base} can succeed,
+    // distibuting $26 + $59.90 + $40.10 = $126 over respective weights
+    // [20, 50, 50] to [$21, $52.50, $52.50].
+    // t.log(readableSteps(plan.flow, depositBrand));
+    arrayIsLike(t, plan?.flow, [
+      makeMovementDesc('Aave_Avalanche', '@Avalanche', scale6(5)),
+      makeMovementDesc('@Avalanche', '@agoric', scale6(5)),
+      makeMovementDesc('Aave_Optimism', '@Optimism', scale6(7.4)),
+      makeMovementDesc('@Optimism', '@agoric', scale6(7.4)),
+      makeMovementDesc('@agoric', '@noble', scale6(12.4)),
+      makeMovementDesc('@noble', '@Base', scale6(12.4)),
+      makeMovementDesc('@Base', 'Aave_Base', scale6(12.4)),
+    ]);
+  });
+
+  test('planDepositToAllocations suppresses small deltas, 10x', async t => {
+    const amount = makeDeposit(scale6(9));
+    const plan = await planDepositToAllocations({
+      ...plannerContext,
+      network: expensiveEthNetwork,
+      targetAllocation,
+      currentBalances: objectMap(makeBalances(10), (amt, place) =>
+        place === 'Aave_Avalanche' ? AmountMath.subtract(amt, amount) : amt,
+      ),
+      amount,
+    });
+
+    // Deltas for the largest and smallest weights are too small, but relative
+    // adjustment between <Deposit> and Aave_{Avalanche,Optimism,Base} can
+    // succeed, distibuting $9 + $17 + $59.90 + $40.10 = $126 over respective
+    // weights [0, 20, 50, 50] to [$0, $21, $52.50, $52.50].
+    // t.log(readableSteps(plan.flow, depositBrand));
+    arrayIsLike(t, plan?.flow, [
+      makeMovementDesc('Aave_Optimism', '@Optimism', scale6(7.4)),
+      makeMovementDesc('@Optimism', '@agoric', scale6(7.4)),
+      makeMovementDesc('<Deposit>', '@agoric', scale6(9)),
+      makeMovementDesc('@agoric', '@noble', scale6(16.4)),
+      makeMovementDesc('@noble', '@Avalanche', scale6(4)),
+      makeMovementDesc('@noble', '@Base', scale6(12.4)),
+      makeMovementDesc('@Avalanche', 'Aave_Avalanche', scale6(4)),
+      makeMovementDesc('@Base', 'Aave_Base', scale6(12.4)),
+    ]);
+  });
+
+  test('planRebalanceToAllocations suppresses small deltas, 100x', async t => {
+    const plan = await planRebalanceToAllocations({
+      ...plannerContext,
+      network: expensiveEthNetwork,
+      targetAllocation,
+      currentBalances: makeBalances(100),
+    });
+
+    // The lowest-weight delta is too small, but values at
+    // Aave_{Avalanche,Base,Optimism,Ethereum} of $260 + $401 + $599 + $1250 =
+    // $2510 can be distributed over respective weights [20, 50, 50, 880] to
+    // [$50.20, $125.50, $125.50, $2208.80].
+    // t.log(readableSteps(plan.flow, depositBrand));
+    arrayIsLike(t, plan?.flow, [
+      makeMovementDesc('Aave_Avalanche', '@Avalanche', scale6(209.8)),
+      makeMovementDesc('Aave_Base', '@Base', scale6(275.5)),
+      makeMovementDesc('@Base', '@Avalanche', scale6(275.5)),
+      makeMovementDesc('Aave_Optimism', '@Optimism', scale6(473.5)),
+      makeMovementDesc('@Optimism', '@agoric', scale6(473.5)),
+      makeMovementDesc('@Avalanche', '@agoric', scale6(485.3)),
+      makeMovementDesc('@agoric', '@noble', scale6(958.8)),
+      makeMovementDesc('@noble', '@Ethereum', scale6(958.8)),
+      makeMovementDesc('@Ethereum', 'Aave_Ethereum', scale6(958.8)),
+    ]);
+  });
+
+  test('planDepositToAllocations suppresses small deltas, 100x', async t => {
+    const amount = makeDeposit(scale6(90));
+    const plan = await planDepositToAllocations({
+      ...plannerContext,
+      network: expensiveEthNetwork,
+      targetAllocation,
+      currentBalances: objectMap(makeBalances(100), (amt, place) =>
+        place === 'Aave_Avalanche' ? AmountMath.subtract(amt, amount) : amt,
+      ),
+      amount,
+    });
+
+    // Deltas for the largest and smallest weights are too small, but relative
+    // adjustment between <Deposit> and Aave_{Avalanche,Optimism,Base} can
+    // succeed, distibuting $9 + $17 + $59.90 + $40.10 = $126 over respective
+    // weights [0, 20, 50, 50] to [$0, $21, $52.50, $52.50].
+    // t.log(readableSteps(plan.flow, depositBrand));
+    // The lowest-weight delta is too small, but values at
+    // <Deposit> and Aave_{Avalanche,Base,Optimism,Ethereum} of
+    // $90 + $170 + $401 + $599 + $1250 = $2510 can be distributed over
+    // respective weights [0, 20, 50, 50, 880] to
+    // [$0, $50.20, $125.50, $125.50, $2208.80].
+    // t.log(readableSteps(plan.flow, depositBrand));
+    arrayIsLike(t, plan?.flow, [
+      makeMovementDesc('Aave_Avalanche', '@Avalanche', scale6(119.8)),
+      makeMovementDesc('@Avalanche', '@agoric', scale6(119.8)),
+      makeMovementDesc('Aave_Base', '@Base', scale6(275.5)),
+      makeMovementDesc('@Base', '@agoric', scale6(275.5)),
+      makeMovementDesc('Aave_Optimism', '@Optimism', scale6(473.5)),
+      makeMovementDesc('@Optimism', '@agoric', scale6(473.5)),
+      makeMovementDesc('<Deposit>', '@agoric', scale6(90)),
+      makeMovementDesc('@agoric', '@noble', scale6(958.8)),
+      makeMovementDesc('@noble', '@Ethereum', scale6(958.8)),
+      makeMovementDesc('@Ethereum', 'Aave_Ethereum', scale6(958.8)),
+    ]);
+  });
+
+  test('planWithdrawFromAllocations works despite small deltas (amount >= deltaSoftMin)', async t => {
+    const amount = makeDeposit(scale6(1));
+    const plan = await planWithdrawFromAllocations({
+      ...plannerContext,
+      network: expensiveEthNetwork,
+      targetAllocation,
+      currentBalances: objectMap(makeBalances(1), (amt, place) =>
+        place === 'Aave_Ethereum' ? AmountMath.add(amt, amount) : amt,
+      ),
+      amount,
+    });
+
+    // t.log(readableSteps(plan.flow, depositBrand));
+    arrayIsLike(t, plan?.flow, [
+      { amount, src: 'Aave_Optimism', dest: '@Optimism' },
+      { amount, src: '@Optimism', dest: '@agoric' },
+      { amount, src: '@agoric', dest: '<Cash>' },
+    ]);
+  });
+
+  test('planWithdrawFromAllocations works despite small deltas (amount < deltaSoftMin)', async t => {
+    const amount = makeDeposit(scale6(0.9));
+    const plan = await planWithdrawFromAllocations({
+      ...plannerContext,
+      network: expensiveEthNetwork,
+      targetAllocation,
+      currentBalances: objectMap(makeBalances(1), (amt, place) =>
+        place === 'Aave_Ethereum' ? AmountMath.add(amt, amount) : amt,
+      ),
+      amount,
+    });
+
+    // t.log(readableSteps(plan.flow, depositBrand));
+    arrayIsLike(t, plan?.flow, [
+      { amount, src: 'Aave_Ethereum', dest: '@Ethereum' },
+      { amount, src: '@Ethereum', dest: '@agoric' },
+      { amount, src: '@agoric', dest: '<Cash>' },
+    ]);
+  });
+
+  test('planWithdrawFromAllocations works despite small deltas (amount > first currentBalances entry)', async t => {
+    const plan = await planWithdrawFromAllocations({
+      ...plannerContext,
+      network: expensiveEthNetwork,
+      targetAllocation,
+      currentBalances: fromTypedEntries(
+        Object.keys(balancesTemplate)
+          .reverse()
+          .map((place: AssetPlaceRef, idx: number) => [
+            place,
+            makeDeposit(scale6(idx * 0.1)),
+          ]),
+      ),
+      amount: makeDeposit(scale6(0.8)),
+    });
+
+    // All deltas are too small, so the $0.80 withdrawal is pulled from
+    // descending balances (Aave_{Ethereum,Base,Optimism} at
+    // [$0.40, $0.30, $0.20], with only $0.10 needed from Aave_Optimism).
+    // t.log(readableSteps(plan.flow, depositBrand));
+    arrayIsLike(t, plan?.flow, [
+      { src: 'Aave_Base', dest: '@Base', amount: makeDeposit(scale6(0.3)) },
+      { src: '@Base', dest: '@agoric', amount: makeDeposit(scale6(0.3)) },
+      {
+        src: 'Aave_Ethereum',
+        dest: '@Ethereum',
+        amount: makeDeposit(scale6(0.4)),
+      },
+      { src: '@Ethereum', dest: '@agoric', amount: makeDeposit(scale6(0.4)) },
+      {
+        src: 'Aave_Optimism',
+        dest: '@Optimism',
+        amount: makeDeposit(scale6(0.1)),
+      },
+      { src: '@Optimism', dest: '@agoric', amount: makeDeposit(scale6(0.1)) },
+      { src: '@agoric', dest: '<Cash>', amount: makeDeposit(scale6(0.8)) },
+    ]);
+  });
+}

@@ -1,6 +1,5 @@
 import type { NatValue } from '@agoric/ertp';
 import type {
-  AxelarChain,
   YieldProtocol,
   SupportedChain,
 } from '@agoric/portfolio-api/src/constants.js';
@@ -44,66 +43,67 @@ export type FeeMode =
 
 // Chains (hubs)
 export interface ChainSpec {
-  name: SupportedChain;
-  chainId?: string; // cosmos chain-id or network id
-  evmChainId?: number; // EVM numeric chain id if applicable
-  bech32Prefix?: string; // for Cosmos
-  axelarKey?: AxelarChain; // Axelar registry key if differs from name
-  feeDenom?: string; // e.g., 'ubld', 'uusdc'
-  gasDenom?: string; // if distinct from feeDenom
-  control: ControlProtocol; // how agoric reaches this chain: 'ibc' (noble) or 'axelar' (EVM) or 'local' (agoric)
+  readonly name: SupportedChain;
+  /** how agoric reaches this chain: 'ibc' (noble) or 'axelar' (EVM) or 'local' (agoric) */
+  readonly control: ControlProtocol;
+  /** minimum delta amount for planned moves involving this chain */
+  readonly deltaSoftMin?: NatValue;
 }
 
 // Pools (leaves)
 export interface PoolSpec {
-  pool: PoolKey; // e.g., 'Aave_Arbitrum', 'USDNVault'
-  chain: SupportedChain; // host chain of the pool
-  protocol: YieldProtocol; // reuse existing YieldProtocol keys
+  readonly pool: PoolKey;
+  /** host chain of the corresponding instrument */
+  readonly chain: SupportedChain;
+  /** protocol of the corresponding instrument */
+  readonly protocol: YieldProtocol;
 }
 
-// Local places: seats (<Deposit>, <Cash>) and local accounts (+agoric), with local edge fees
+/**
+ * A +agoric local account or <Deposit>/<Cash> Agoric blockchain contract seat.
+ */
 export interface LocalPlaceSpec {
-  id: AssetPlaceRef; // '<Deposit>' | '<Cash>' | '+agoric' | PoolKey (treated as local to its hub)
-  chain: SupportedChain; // typically 'agoric'
-  // Local edge fee/policy when connecting to the hub on the same chain
-  variableFeeBps?: number;
-  flatFee?: NatValue;
-  timeSec?: number;
-  capacity?: NatValue;
-  enabled?: boolean;
+  readonly id: '<Deposit>' | '<Cash>' | '+agoric';
+  readonly chain: 'agoric';
 }
 
-// Directed inter-hub link
+/**
+ * A directed edge from one place to another, usually having at least one hub
+ * endpoint.
+ */
 export interface LinkSpec {
-  src: AssetPlaceRef;
-  dest: AssetPlaceRef;
+  readonly src: AssetPlaceRef;
+  readonly dest: AssetPlaceRef;
 
-  // Fees
-  variableFeeBps: number; // basis points of amount
-  flatFee?: NatValue; // minor units in src fee token
+  /**
+   * variable transfer fee in basis points to be applied against the transferred
+   * amount of major units (e.g., USDC)
+   */
+  readonly variableFeeBps: number;
+  /** flat-rate transfer fee in minor units (e.g., uusdc) */
+  readonly flatFee?: NatValue;
 
-  // Performance & limits
-  timeSec: number; // latency
-  capacity?: NatValue; // optional throughput limit
-  min?: NatValue; // optional min transfer size
+  /** expected transfer settlement time in seconds */
+  readonly timeSec: number;
+  /** inclusive maximum transfer amount in minor units (e.g., uusdc) */
+  readonly capacity?: NatValue;
+  /** inclusive minimum transfer amount in minor units (e.g., uusdc) */
+  readonly min?: NatValue;
 
-  // Protocols
-  transfer: TransferProtocol; // asset transfer mechanism
-  feeMode?: FeeMode; // how fees apply to transation using this link. See plan-solve.ts
-
-  // Policy / guardrails (optional)
-  // priority?: number; // tie-break hint
-  // enabled?: boolean; // admin toggle
+  /** mechanism by which the transfer occurs */
+  readonly transfer: TransferProtocol;
+  /** designator for how fees apply to transactions over this link */
+  readonly feeMode?: FeeMode;
 }
 
-// Overall network definition
+/** Details of how chains/pools/etc. and how they connect. */
 export interface NetworkSpec {
-  debug?: boolean;
-  environment?: 'dev' | 'test' | 'prod';
+  readonly debug?: boolean;
+  readonly environment?: 'dev' | 'test' | 'prod';
 
-  chains: ChainSpec[];
-  pools: PoolSpec[];
-  localPlaces?: LocalPlaceSpec[];
-  links: LinkSpec[];
+  readonly chains: ChainSpec[];
+  readonly pools: PoolSpec[];
+  readonly localPlaces?: LocalPlaceSpec[];
+  readonly links: LinkSpec[];
 }
 export type { PoolKey };

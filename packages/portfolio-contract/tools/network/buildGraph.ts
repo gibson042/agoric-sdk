@@ -4,7 +4,10 @@ import { zeroPad } from '@endo/marshal';
 
 import type { NatAmount } from '@agoric/ertp/src/types.js';
 import { partialMap, typedEntries } from '@agoric/internal/src/js-utils.js';
-import { AxelarChain } from '@agoric/portfolio-api/src/constants.js';
+import {
+  AxelarChain,
+  SupportedChain,
+} from '@agoric/portfolio-api/src/constants.js';
 import {
   isDepositFromChainRef,
   isInstrumentId,
@@ -42,15 +45,17 @@ export interface FlowGraph {
 }
 
 // XXX Possible to consolidate with {@link getChainNameOfPlaceRef}?
-export const chainOf = (id: AssetPlaceRef): string => {
+export const chainOf = (id: AssetPlaceRef): SupportedChain => {
   if (id.startsWith('<')) return 'agoric';
   // {@link AssetPlaceRef} explains why this `.slice(1)` returns a chain name.
+  // @ts-expect-error promotion of string to SupportedChain
   if (!isInstrumentId(id)) return id.slice(1);
   if (Object.hasOwn(PoolPlaces, id)) return PoolPlaces[id as PoolKey].chainName;
 
-  // Fallback: syntactic pool id like "Protocol_Chain" => chain
+  // Fallback: syntactic pool id like `${Protocol}_${Chain}` => `${Chain}`
   // This enables base graph edges for pools even if not listed in PoolPlaces
   const m = /^([A-Za-z0-9]+)_([A-Za-z0-9-]+)$/.exec(id);
+  // @ts-expect-error promotion of string to SupportedChain
   if (m) return m[2];
 
   throw Fail`Cannot determine chain for ${id}`;
