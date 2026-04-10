@@ -8,6 +8,7 @@ import type { StorageNode } from '@agoric/internal/src/lib-chainStorage.js';
 import type { WithSignature } from '@agoric/orchestration/src/utils/viem.js';
 import {
   encodeType,
+  getTypesForEIP712Domain,
   hashStruct,
   isHex,
   recoverTypedDataAddress,
@@ -424,6 +425,7 @@ export const prepareEVMWalletMessageHandler = (
     recoverTypedDataAddress,
     validateTypedData,
     encodeType,
+    getTypesForEIP712Domain,
   });
 
   const MessageHandlerI = M.interface('EVMWalletMessageHandler', {
