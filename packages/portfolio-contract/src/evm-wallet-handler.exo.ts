@@ -14,6 +14,7 @@ import {
   recoverTypedDataAddress,
   validateTypedData,
 } from '@agoric/orchestration/src/vendor/viem/viem-typedData.js';
+import { getAddress } from '@agoric/orchestration/src/vendor/viem/viem-address.js';
 import type { StatusFor } from '@agoric/portfolio-api';
 import type {
   YmaxFullDomain,
@@ -46,7 +47,7 @@ const MAX_DEADLINE_OFFSET = 60n * 60n * 24n; // 1 day in seconds
 
 type EIP712Data = WithSignature<
   YmaxStandaloneOperationData | YmaxPermitWitnessTransferFromData
->;
+> & { verifiedSigner?: Address };
 
 type PortfolioEVMFacet = PortfolioKit['evmHandler'];
 interface PortfolioContractPublicFacet {
@@ -385,13 +386,18 @@ type EVMPortfolioOperationManager = ReturnType<
   typeof prepareEVMPortfolioOperationManager
 >;
 
-export const EIP712DataShape = M.splitRecord({
-  domain: M.any(),
-  types: M.record(),
-  primaryType: M.string(),
-  message: M.record(),
-  signature: M.any(),
-});
+export const EIP712DataShape = M.splitRecord(
+  {
+    domain: M.any(),
+    types: M.record(),
+    primaryType: M.string(),
+    message: M.record(),
+    signature: M.any(),
+  },
+  {
+    verifiedSigner: M.string(),
+  },
+);
 
 /**
  * Prepare an EVM Wallet message handler exoClass. This is the inner factory
@@ -444,7 +450,8 @@ export const prepareEVMWalletMessageHandler = (
        *
        * Used by an off-chain message service to relay the message that was
        * signed by the user's wallet, after having verified that the user's
-       * message is valid.
+       * message is valid, and optionally that the signature matches the
+       * claimed user's wallet.
        *
        * @param messageData - The EIP-712 message
        * @throws i.e. Vow rejects if:
@@ -459,14 +466,22 @@ export const prepareEVMWalletMessageHandler = (
         return vowTools.asVow(async () => {
           trace('handleMessage', messageData);
 
+          const { verifiedSigner, ...signedData } = messageData;
+
           // Extracts the owner address from the signature using ECDSA recovery
+          // if a verified signer was not provided by the caller.
+          // Normalize signer address to checksum format.
+          // ECDSA extraction does this automatically, ensures that an externally
+          // verified signer address matches the format.
           // Resolves immediately on-chain since all deps are bundled
-          const walletOwner = await recoverTypedDataAddress(
-            messageData as RecoverTypedDataAddressParameters,
-          );
+          const walletOwner = await (verifiedSigner
+            ? getAddress(verifiedSigner)
+            : recoverTypedDataAddress(
+                signedData as RecoverTypedDataAddressParameters,
+              ));
 
           const signedDataWithAddress = {
-            ...messageData,
+            ...signedData,
             address: walletOwner,
           };
 

@@ -712,6 +712,7 @@ test('handleOperation invokes setTargetAllocation with correct parameters', asyn
 // ==================== handleMessage Tests ====================
 
 const ecdsaAccount = privateKeyToAccount(evmTrader0PrivateKey);
+const testSigner = ecdsaAccount.address;
 
 const MOCK_VERIFYING_CONTRACT =
   '0x1234567890abcdef1234567890abcdef12345678' as const;
@@ -880,6 +881,39 @@ test('handleMessage extracts permit2 details and delegates to handleOperation', 
     chainId: CHAIN_ID,
     verifyingContract: MOCK_VERIFYING_CONTRACT,
   });
+});
+
+test('handleMessage normalizes verifiedSigner to checksum format and accepts non ECDSA signatures', async t => {
+  const { zone } = t.context;
+  const { vowTools, handler, getHandleOperationCalls } =
+    makeMessageHandlerTestSetup(zone, 'vow13', { namePrefix: 'test13_' });
+
+  const deadline = CURRENT_TIME + 3600n;
+  const message = getYmaxStandaloneOperationData(
+    {
+      portfolio: 1n,
+      nonce: 2n,
+      deadline,
+    },
+    'Rebalance',
+    CHAIN_ID,
+    MOCK_VERIFYING_CONTRACT,
+  );
+
+  // Pass a lowercase address; handleMessage should normalize to checksum
+  const vow = handler.handleMessage(
+    harden({
+      ...message,
+      signature: '0x00',
+      verifiedSigner: testSigner.toLowerCase() as `0x${string}`,
+    }) as any,
+  );
+  await vowTools.when(vow);
+
+  const calls = getHandleOperationCalls();
+  t.is(calls.length, 1);
+  // The address should be checksummed, not lowercase
+  t.is(calls[0].address, testSigner);
 });
 
 test('handleMessage rejects expired deadline', async t => {

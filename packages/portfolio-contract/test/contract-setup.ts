@@ -386,9 +386,11 @@ export const makeEvmTraderKit = async (
   {
     privateKey = evmTrader0PrivateKey,
     useRouter,
+    useVerifiedSigner,
   }: {
     privateKey?: Hex;
     useRouter?: boolean;
+    useVerifiedSigner?: boolean;
   } = {},
 ) => {
   const { common, zoe, started, timerService } = deployed;
@@ -411,6 +413,7 @@ export const makeEvmTraderKit = async (
     readPublished,
     when,
     useRouter,
+    useVerifiedSigner,
   });
   return { evmTrader, evmWalletHandler, evmAccount: account, readPublished };
 };
