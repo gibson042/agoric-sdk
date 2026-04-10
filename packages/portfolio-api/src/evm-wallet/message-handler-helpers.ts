@@ -15,6 +15,7 @@ import type {
   RecoverTypedDataAddressParameters,
   validateTypedData,
 } from 'viem/utils';
+import { sameEvmAddress } from '@agoric/orchestration/src/utils/address.js';
 import type {
   encodeType,
   WithSignature,
@@ -408,6 +409,8 @@ export const makeEVMHandlerUtils = (viemUtils: {
    * optionally with permit data.
    *
    * This expects an ECDSA signature and recovers the signer address from it.
+   * If an address field is present, the recovered address must match the
+   * provided address.
    *
    * @deprecated Use `extractOperationDetailsFromDataWithAddress` instead,
    * performing signature verification separately.
@@ -420,7 +423,7 @@ export const makeEVMHandlerUtils = (viemUtils: {
   >(
     signedData: WithSignature<
       YmaxPermitWitnessTransferFromData<T> | YmaxStandaloneOperationData<T>
-    >,
+    > & { address?: Address },
     validYmaxRepresentativeContractAddresses?: Partial<
       Record<number | string, Address>
     >,
@@ -428,6 +431,12 @@ export const makeEVMHandlerUtils = (viemUtils: {
     const tokenOwner = await recoverTypedDataAddress(
       signedData as RecoverTypedDataAddressParameters,
     );
+
+    if (signedData.address && !sameEvmAddress(tokenOwner, signedData.address)) {
+      throw new Error(
+        `Recovered address does not match provided address ${signedData.address}`,
+      );
+    }
 
     return extractOperationDetailsFromDataWithAddress(
       { ...signedData, address: tokenOwner },
