@@ -6,11 +6,7 @@
  * on chain and in off-chain services.
  */
 
-import type {
-  AbiParameterToPrimitiveType,
-  Address,
-  TypedDataDomain,
-} from 'abitype';
+import type { AbiParameterToPrimitiveType, Address } from 'abitype';
 import type { getTypesForEIP712Domain } from 'viem';
 import type {
   hashStruct,
@@ -28,6 +24,7 @@ import {
   isPermit2MessageType,
   makeWitnessTypeStringExtractor,
   validatePermit2Domain,
+  validateTokenPermissionsType,
   type Permit2Domain,
   type PermitWitnessTransferFromInputComponents,
 } from '@agoric/orchestration/src/utils/permit2.js';
@@ -124,20 +121,24 @@ export const makeEVMHandlerUtils = (viemUtils: {
    * Assumes the domain has the expected shape of a Ymax domain.
    *
    * @param data - The EIP-712 typed data of a standalone message
-   * @param validContractAddresses - *Deprecated*
    * @returns The operation type name and associated data
    */
   const extractOperationDetailsFromStandaloneData = <
     T extends OperationTypeNames,
   >(
     data: Omit<YmaxStandaloneOperationData<T>, 'domain'> & {
-      domain: TypedDataDomain;
+      domain: YmaxFullDomain;
     },
-    validContractAddresses?: Partial<Record<number | string, Address>>,
+    validContractAddresses?: undefined,
   ): YmaxOperationDetails<T> => {
     const { domain, ...standaloneData } = data;
 
-    validateYmaxDomain(domain, validContractAddresses);
+    if (validContractAddresses) {
+      throw new Error(
+        'Contract address validation expected to be validated separately',
+      );
+    }
+
     validateYmaxOperationTypeName<T>(standaloneData.primaryType);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -258,6 +259,8 @@ export const makeEVMHandlerUtils = (viemUtils: {
 
     // Validates the permit2 related types are correct
     const witnessField = extractWitnessFieldFromTypes(permitData.types);
+    validateTokenPermissionsType(permitData.types);
+
     const { [witnessField.name]: witnessData, ...permit } = permitData.message;
     const witness = hashStruct({
       primaryType: witnessField.type,
@@ -300,11 +303,12 @@ export const makeEVMHandlerUtils = (viemUtils: {
    * expected to be done by the caller.
    *
    * Validates the domain of the typed data, and optionally the verifying
-   * contract against the provided contract addresses.
+   * contract and spender against the provided contract addresses.
    *
    * @param data The operation data with an `address` field of the signing owner.
    * @param contractAddresses Optionally, a set of valid contract addresses to validate against
-   * @param contractAddresses.standalone If provided, validates a standalone message's verifying contract
+   * @param contractAddresses.permit2 If provided, validates a permit2 based message's verifying contract
+   * @param contractAddresses.standalone If provided, validates a standalone message's verifying contract or permit2 spender
    */
   const extractOperationDetailsFromDataWithAddress = <
     T extends OperationTypeNames = OperationTypeNames,
@@ -314,6 +318,7 @@ export const makeEVMHandlerUtils = (viemUtils: {
       | YmaxStandaloneOperationData<T>
     ) & { address: Address },
     contractAddresses: {
+      permit2?: Partial<Record<number | string, Address>>;
       ymaxRepresentative?: Partial<Record<number | string, Address>>;
     } = {},
   ): FullMessageDetails<T> => {
@@ -347,7 +352,7 @@ export const makeEVMHandlerUtils = (viemUtils: {
         'domain'
       >;
 
-      validatePermit2Domain(domain);
+      validatePermit2Domain(domain, contractAddresses.permit2);
       const permit2DataWithDomain = { ...permit2Data, domain };
 
       // Validates the permit2 related types are correct
@@ -360,6 +365,14 @@ export const makeEVMHandlerUtils = (viemUtils: {
       const operationDetails = extractOperationDetailsFromPermit2WitnessData(
         permit2DataWithDomain,
       );
+      // If we have standalone representative addresses, validate the extracted
+      // spender against them.
+      if (contractAddresses.ymaxRepresentative) {
+        validateYmaxDomain(
+          operationDetails.domain,
+          contractAddresses.ymaxRepresentative,
+        );
+      }
 
       return {
         ...operationDetails,
@@ -374,13 +387,12 @@ export const makeEVMHandlerUtils = (viemUtils: {
         'domain'
       >;
 
-      const operationDetails = extractOperationDetailsFromStandaloneData(
-        {
-          ...standaloneData,
-          domain,
-        },
-        contractAddresses.ymaxRepresentative,
-      );
+      validateYmaxDomain(domain, contractAddresses.ymaxRepresentative);
+
+      const operationDetails = extractOperationDetailsFromStandaloneData({
+        ...standaloneData,
+        domain,
+      });
 
       return {
         ...operationDetails,
