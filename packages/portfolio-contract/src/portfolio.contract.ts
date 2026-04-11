@@ -61,7 +61,7 @@ import { Fail, q } from '@endo/errors';
 import { E } from '@endo/far';
 import { makeMarshal } from '@endo/marshal';
 import type { CopyRecord } from '@endo/pass-style';
-import { M } from '@endo/patterns';
+import { M, objectMap } from '@endo/patterns';
 import { prepareEVMWalletHandlerKit } from './evm-wallet-handler.exo.ts';
 import { preparePlanner } from './planner.exo.ts';
 import {
@@ -799,6 +799,11 @@ export const contract = async (
     makePlanner(),
   );
 
+  const permit2Addresses = objectMap(
+    eip155ChainIdToAxelarChain,
+    chainName => contracts[chainName].permit2,
+  );
+
   const { makeEVMWalletMessageHandler } = prepareEVMWalletHandlerKit(
     zone.subZone('evmWalletHandler'),
     {
@@ -807,6 +812,7 @@ export const contract = async (
       timerService,
       portfolioContractPublicFacet: publicFacet,
       publishStatus,
+      permit2Addresses,
     },
   );
 

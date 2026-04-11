@@ -777,6 +777,9 @@ const makeMessageHandlerTestSetup = (
     vowTools,
     storageNode: mockStorageNode,
     timerService: mockTimerService as any,
+    permit2Addresses: {
+      [`${CHAIN_ID}`]: MOCK_PERMIT2_ADDRESS,
+    },
     handleOperation,
     insertNonce,
     removeExpiredNonces,
@@ -1021,4 +1024,50 @@ test('handleMessage rejects replayed nonce', async t => {
 
   // Different nonce should succeed
   await vowTools.when(handler.handleMessage(await makeMsg(2n)));
+});
+
+test('handleMessage rejects permit2 message with wrong verifying contract', async t => {
+  const { zone } = t.context;
+  const { vowTools, handler, getHandleOperationCalls } =
+    makeMessageHandlerTestSetup(zone, 'vow14', {
+      namePrefix: 'test14_',
+    });
+
+  const deadline = CURRENT_TIME + 3600n;
+  const witness = getYmaxWitness('Deposit', {
+    portfolio: 1n,
+  });
+
+  // Use a WRONG permit2 address as verifyingContract (valid address, wrong contract)
+  const wrongPermit2Address =
+    '0x0000000000000000000000000000000000000001' as const;
+
+  const permit2Message = getPermitWitnessTransferFromData(
+    {
+      permitted: { token: MOCK_TOKEN_ADDRESS, amount: 500_000n },
+      nonce: 1n,
+      deadline,
+      spender: MOCK_VERIFYING_CONTRACT,
+    },
+    wrongPermit2Address,
+    CHAIN_ID,
+    witness,
+  );
+
+  const vow = handler.handleMessage(
+    harden({
+      ...permit2Message,
+      signature: '0x00',
+      verifiedSigner: testSigner,
+    }) as any,
+  );
+
+  await t.throwsAsync(() => vowTools.when(vow), {
+    message: /Invalid verifying contract/,
+  });
+  t.is(
+    getHandleOperationCalls().length,
+    0,
+    'handleOperation should not be called',
+  );
 });

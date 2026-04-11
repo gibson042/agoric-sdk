@@ -412,6 +412,7 @@ export const prepareEVMWalletMessageHandler = (
     vowTools,
     storageNode,
     timerService,
+    permit2Addresses,
     handleOperation,
     insertNonce,
     removeExpiredNonces,
@@ -420,6 +421,7 @@ export const prepareEVMWalletMessageHandler = (
     vowTools: Pick<VowTools, 'asVow' | 'watch' | 'when'>;
     storageNode: ERemote<StorageNode>;
     timerService: ERemote<TimerService>;
+    permit2Addresses: { [chainId in `${number | bigint}`]?: Address };
     handleOperation: EVMPortfolioOperationManager['handleOperation'];
     insertNonce: NonceManager['insertNonce'];
     removeExpiredNonces: NonceManager['removeExpiredNonces'];
@@ -488,6 +490,9 @@ export const prepareEVMWalletMessageHandler = (
           // This does not perform any signature validation
           const details = extractOperationDetailsFromDataWithAddress(
             signedDataWithAddress,
+            {
+              permit2: permit2Addresses,
+            },
           );
 
           trace('extracted details', details);
@@ -558,12 +563,14 @@ export const prepareEVMWalletHandlerKit = (
     timerService,
     portfolioContractPublicFacet,
     publishStatus,
+    permit2Addresses,
   }: {
     storageNode: ERemote<StorageNode>;
     vowTools: Pick<VowTools, 'asVow' | 'watch' | 'when'>;
     timerService: ERemote<TimerService>;
     portfolioContractPublicFacet: ERemote<PortfolioContractPublicFacet>;
     publishStatus: PublishStatus;
+    permit2Addresses: { [chainId in `${number | bigint}`]?: Address };
   },
 ) => {
   // TODO: key/value shapes?
@@ -587,6 +594,7 @@ export const prepareEVMWalletHandlerKit = (
     vowTools,
     storageNode,
     timerService,
+    permit2Addresses,
     handleOperation,
     insertNonce,
     removeExpiredNonces,
