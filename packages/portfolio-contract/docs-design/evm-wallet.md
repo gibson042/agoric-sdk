@@ -97,11 +97,11 @@ sequenceDiagram
   note over MM: NOT SHOWN:<br/>Any needed one time<br/>Permit2 approval
   D-->>U: stand by...
 
-  D -->> EMS: signed<br/>PortfolioOp(nonce543, ...)
-  note over EMS: NOT SHOWN:<br/>early validation
+  D -->> EMS: address, signed<br/>PortfolioOp(nonce543, ...)
+  note over EMS: verify signature
   note right of EMS: using walletFactory invokeEntry
-  EMS -->> EMH: handleMessage(<br/>PortfolioOp(nonce543, ...), signature)
-  EMH -->> EMH: check sig:<br/>pubkey = ecRecover(...)<br/>addr = hash(pubkey)
+  EMS -->> EMH: handleMessage(<br/>PortfolioOp(nonce543, ...),<br/>signature, verifiedSigner)
+  EMH -->> EMH: validate message structure,<br/>nonce, deadline
   EMH -->> YC: PortfolioOp(...args)
   YC -->> EMH: result
   note over EMH: NOT SHOWN:<br/>vstorage, YDS details
@@ -169,11 +169,11 @@ sequenceDiagram
 
   D-->>U: stand by...
 
-  D -->> EMS: signed<br/>PermitWitnessTransferFrom(<br/>nonce543, ...)
-  note over EMS: NOT SHOWN:<br/>early validation
+  D -->> EMS: address, signed<br/>PermitWitnessTransferFrom(<br/>nonce543, ...)
+  note over EMS: verify signature
   note right of EMS: using walletFactory invokeEntry
-  EMS -->> EMH: handleMessage(<br/>PermitWitnessTransferFrom(<br/>nonce543, ...), signature)
-  EMH -->> EMH: check sigs
+  EMS -->> EMH: handleMessage(<br/>PermitWitnessTransferFrom(<br/>nonce543, ...),<br/>signature, verifiedSigner)
+  EMH -->> EMH: validate message structure,<br/>verify permit2 contract address
   EMH -->> EMH: extract nested operation
   EMH -->> YC: OpenPortfolio(1,000 USDC,<br/>{60% A, 40% B},<br/>signed permit)
   YC -->> EMH: portfolio123<br/>flow1
@@ -247,12 +247,12 @@ sequenceDiagram
   U->>MM: ok
   MM-->>D: signature
   D-->>U: stand by...
-  D -->> EMS: Withdraw712, signature
-  note over EMS: NOT SHOWN:<br/>early validation
+  D -->> EMS: Withdraw712, signature,<br>address
+  note over EMS: verify signature
   note right of EMS: using walletFactory invokeEntry
-  EMS -->> EMH: handleMessage(Withdraw712, signature)
-  EMH -->> EMH: check sigs
-  EMH -->> EMH: extract nested operation,<br/>chainId from domain
+  EMS -->> EMH: handleMessage(Withdraw712,<br/>signature, verifiedSigner)
+  EMH -->> EMH: validate message structure,<br/>nonce, deadline
+  EMH -->> EMH: extract operation,<br/>chainId from domain
   EMH -->> YC: Withdraw(500 USDC, chainId=42161)
   YC -->> EMH: portfolio123<br/>flow2
   note over EMH: NOT SHOWN:<br/>vstorage, YDS details
@@ -264,10 +264,13 @@ sequenceDiagram
   D -->> U: withdrawal complete
 ```
 
-## Early Validation
+## Signature Verification and Early Validation
 
-The EVM Message Service spends gas to put messages on the Agoric chain -- messages that cause the Ymax contract to spend EVM execution fees. To mitigate spam/DOS risks,
-it does early validation of signatures and balance:
+The EVM Message Service is a trusted off-chain relay that verifies EIP-712 signatures before submitting messages on-chain. When the EMS has verified the signature, it sends the signer address as `verifiedSigner` alongside the message data. The on-chain EVM Handler trusts this verified address and doesn't perform any signature verification. It does however validate message structure, nonce, deadline, and contract addresses (e.g. permit2 verifying contract). If the message includes a deposit permit, the signature will be validated by the permit2 contract on the EVM chain when the permit is redeemed during the deposit operation.
+
+If `verifiedSigner` is not provided, the EVM Handler falls back to on-chain ECDSA recovery from the signature, which only works for EOA accounts.
+
+The EMS also spends gas to put messages on the Agoric chain -- messages that cause the Ymax contract to spend EVM execution fees. To mitigate spam/DOS risks, besides signature validation, it also does early validation of message structure like the on-chain contract, as well as check for current availability of a deposit balance:
 
 ```mermaid
 
@@ -283,7 +286,7 @@ it does early validation of signatures and balance:
   }
 }}%%
 sequenceDiagram
-  title Avoid Spam: Tentative Validation
+  title Signature Verification and Balance Validation
   autonumber
   participant D as Ymax UI
   participant EMS as EVM<br/> Message Service
@@ -296,22 +299,23 @@ sequenceDiagram
 
   %% Notation: ->> for initial message, -->> for consequences
 
-  D -->> EMS: signed<br/>PermitWitnessTransferFrom(<br/>1,000 USDC,<br/>nonce543, ...)
+  D -->> EMS: address, signed<br/>PermitWitnessTransferFrom(<br/>1,000 USDC,<br/>nonce543, ...)
 
-  note over EMS: avoid SPAM:<br/>tentative validation<br/>of sig, balance
-  EMS-->>EMS: verify signatures,<br />deadline
+  note over EMS: verify signature &<br/>validate balance
+  EMS-->>EMS: verify structure, deadline
+  EMS-->>EMS: hash = hashMessage(signed data)
   note left of B: using Spectrum API
-  EMS-->>B: Get 0xED123 permit2 USDC,<br/>approval, allowances
-  B-->>EMS: a, limit
-  EMS-->>EMS: verify a == true && limit > 1,000
-
-  EMS-->>B: Get 0xED123 balances
+  EMS-->>B: addr.validateSignature(hash, signature)
+  EMS-->>B: Get 0xED123 permit2 USDC,<br/>allowance
+  EMS-->>B: Get 0xED123 USDC balance
+  B-->>EMS: signature valid
+  B-->>EMS: limit
   B-->>EMS: n USDC
-  EMS-->>EMS: verify n >= 1,000
+  EMS-->>EMS: verify limit > 1,000 && n >= 1,000
 
   note right of EMS: using walletFactory invokeEntry
-  EMS -->> EMH: handleMessage(<br/>PermitWitnessTransferFrom(<br/>nonce543, ...), signature)
-  EMH -->> EMH: check sigs
+  EMS -->> EMH: handleMessage(<br/>PermitWitnessTransferFrom(<br/>nonce543, ...),<br/>signature, verifiedSigner=address)
+  EMH -->> EMH: validate message structure,<br/>verify permit2 contract address
   EMH -->> EMH: extract nested operation
   EMH -->> YC: OpenPortfolio(1,000 USDC,<br/>{60% A, 40% B},<br/>signed permit)
 ```
@@ -352,10 +356,10 @@ sequenceDiagram
 
   %% Notation: ->> for initial message, -->> for consequences
 
-  D -->> YDS: POST /evm-operations<br/>signed PortfolioOp(nonce543, ...)
-  YDS -->> EMS: signed<br/>PortfolioOp(nonce543, ...)
+  D -->> YDS: POST /evm-operations<br/>address, signed PortfolioOp(nonce543, ...)
+  YDS -->> EMS: address, signed<br/>PortfolioOp(nonce543, ...)
 
-  note over EMS: NOT SHOWN:<br/>tentative validation
+  note over EMS: verify signature &<br/>early balance validation
   EMS --> W: invokeEntry(invoke78,<br/>evmWalletHandler,<br/>handleMessage, ...)
   EMS -->> YDS: OpDetails<br/>nonce543<br/>0xED123<br/>portfolio123?<br/>tx hash
   YDS -->> D: OK
@@ -363,15 +367,22 @@ sequenceDiagram
 
   YDS -->> YDS: watch tx,<br/>0xED123/portfolio123
 
-  W -->> EMH: handleMessage(<br/>PortfolioOp(nonce543, ...),<br/>signature)
-  EMH -->> EMH: check sigs
-  alt sig failure
+  W -->> EMH: handleMessage(<br/>PortfolioOp(nonce543, ...),<br/>signature, verifiedSigner=0xED123)
+  EMH -->> EMH: validate message structure,<br/>nonce, deadline
+  alt structure validation failure
     EMH -->> W: error
     W -->> W: update published.wallet<br/>.agoric1evm<br/>to invoke78 status
-  else sig success
-    EMH -->> YC: PortfolioOp(...args)
-    EMH -->> EMH: update published.ymaxN<br/>.evmWallet.0xED123<br/>to nonce543 status
-    note over EMH: handleMessage outcome<br/>include PortfolioOp result?
+  else structure validation success
+    EMH -->> YC: ValidateDomain
+    alt domain validation failure
+      YC -->> EMH: error
+      EMH -->> EMH: update published.ymaxN<br/>.evmWallet.0xED123<br/>with nonce543 failure
+    else domain validation success
+      YC -->> EMH: ok
+      EMH -->> YC: PortfolioOp(...args)
+      EMH -->> EMH: update published.ymaxN<br/>.evmWallet.0xED123<br/>to nonce543 status
+      note over EMH: handleMessage outcome<br/>include PortfolioOp result?
+    end
     EMH -->> W: ok
     W -->> W: update published.wallet<br/>.agoric1evm<br/>to invoke78 status
     YDS -->> EMH: GET published.ymaxN<br/>.evmWallet.0xED123
