@@ -136,6 +136,7 @@ export const makeNonceManager = (zone: Zone) => {
 
   return harden({ insertNonce, removeExpiredNonces });
 };
+type NonceManager = ReturnType<typeof makeNonceManager>;
 
 /** @private */
 export const getPublishedResult = (
@@ -378,6 +379,9 @@ export const prepareEVMPortfolioOperationManager = (
 
   return harden({ handleOperation });
 };
+type EVMPortfolioOperationManager = ReturnType<
+  typeof prepareEVMPortfolioOperationManager
+>;
 
 export const EIP712DataShape = M.splitRecord({
   domain: M.any(),
@@ -388,34 +392,30 @@ export const EIP712DataShape = M.splitRecord({
 });
 
 /**
- * Prepare an EVM Wallet handler kit. It holds portfolios for EVM Wallet users,
- * and accepts and verifies EIP-712 messages they sign.
+ * Prepare an EVM Wallet message handler exoClass. This is the inner factory
+ * that can be called with explicit dependencies, enabling unit tests to
+ * supply mocks for `handleOperation`, nonce management, and wallet lookup.
  *
- * A message handler instance is meant to be held by an off-chain service to
- * submit EIP-712 messages on behalf of EVM Wallet users after doing
- * preliminary validations of the message and the user's EVM wallet state.
- * Status updates of processing messages are published to vstorage, similarly
- * to offer status updates published by the smart wallet.
- *
- * Portfolios created by EVM Wallet users are held by the kit, which can only
- * interact with these portfolios (not any other existing portfolios). The
- * public subscriber path of these portfolios are also published to vstorage,
- * similar to how the smart wallet publishes these.
+ * @see {@link prepareEVMWalletHandlerKit} for the full wiring used in production.
  */
-export const prepareEVMWalletHandlerKit = (
+export const prepareEVMWalletMessageHandler = (
   zone: Zone,
   {
-    storageNode,
     vowTools,
+    storageNode,
     timerService,
-    portfolioContractPublicFacet,
-    publishStatus,
+    handleOperation,
+    insertNonce,
+    removeExpiredNonces,
+    getWalletForAddress,
   }: {
-    storageNode: ERemote<StorageNode>;
     vowTools: Pick<VowTools, 'asVow' | 'watch' | 'when'>;
+    storageNode: ERemote<StorageNode>;
     timerService: ERemote<TimerService>;
-    portfolioContractPublicFacet: ERemote<PortfolioContractPublicFacet>;
-    publishStatus: PublishStatus;
+    handleOperation: EVMPortfolioOperationManager['handleOperation'];
+    insertNonce: NonceManager['insertNonce'];
+    removeExpiredNonces: NonceManager['removeExpiredNonces'];
+    getWalletForAddress: (address: Address) => EVMWallet;
   },
 ) => {
   const { extractOperationDetailsFromSignedData } = makeEVMHandlerUtils({
@@ -426,32 +426,16 @@ export const prepareEVMWalletHandlerKit = (
     encodeType,
   });
 
-  // TODO: key/value shapes?
-  const walletByAddress = zone.mapStore<Address, EVMWallet>('wallets');
-
-  const getWalletForAddress = (address: Address): EVMWallet =>
-    provideLazy(walletByAddress, address, () =>
-      harden({
-        portfolios: zone.detached().mapStore('portfolios'),
-      }),
-    );
-
-  const { insertNonce, removeExpiredNonces } = makeNonceManager(zone);
-  const { handleOperation } = prepareEVMPortfolioOperationManager(zone, {
-    vowTools,
-    portfolioContractPublicFacet,
-    publishStatus,
-  });
-
   const MessageHandlerI = M.interface('EVMWalletMessageHandler', {
     handleMessage: M.call(EIP712DataShape).returns(VowShape),
   });
 
-  const makeEVMWalletMessageHandler = zone.exoClass(
+  return zone.exoClass(
     'messageHandler',
     MessageHandlerI,
     () => ({}),
     {
+      // eslint-disable-next-line jsdoc/require-throws-type
       /**
        * Handle an EIP-712 message signed by a user.
        *
@@ -459,9 +443,13 @@ export const prepareEVMWalletHandlerKit = (
        * signed by the user's wallet, after having verified that the user's
        * message is valid.
        *
-       * @param messageData - The EIP-712 message that
-       * @throws i.e. Vow rejects if the message fails validation. If the
-       *   execution triggered by the message fails, the status is reported to
+       * @param messageData - The EIP-712 message
+       * @throws i.e. Vow rejects if:
+       *   - the message shape is invalid,
+       *   - the message nonce or deadline are invalid,
+       *
+       *   If execution triggered by the message fails, including invalid
+       *   representative contract address, the status is reported to
        *   the public topic.
        */
       handleMessage(messageData: EIP712Data): Vow<void> {
@@ -502,6 +490,8 @@ export const prepareEVMWalletHandlerKit = (
 
           harden(operationDetails);
 
+          // The ymax domain (verifyingContract / permit2 spender) will be validated by handleOperation
+          // to report any issues on the wallet's public topic.
           return handleOperation({
             wallet,
             storageNode: walletNode,
@@ -517,6 +507,65 @@ export const prepareEVMWalletHandlerKit = (
       stateShape: {},
     },
   );
+};
+
+/**
+ * Prepare an EVM Wallet handler kit. It holds portfolios for EVM Wallet users,
+ * and accepts and verifies EIP-712 messages they sign.
+ *
+ * A message handler instance is meant to be held by an off-chain service to
+ * submit EIP-712 messages on behalf of EVM Wallet users after doing
+ * preliminary validations of the message and the user's EVM wallet state.
+ * Status updates of processing messages are published to vstorage, similarly
+ * to offer status updates published by the smart wallet.
+ *
+ * Portfolios created by EVM Wallet users are held by the kit, which can only
+ * interact with these portfolios (not any other existing portfolios). The
+ * public subscriber path of these portfolios are also published to vstorage,
+ * similar to how the smart wallet publishes these.
+ */
+export const prepareEVMWalletHandlerKit = (
+  zone: Zone,
+  {
+    storageNode,
+    vowTools,
+    timerService,
+    portfolioContractPublicFacet,
+    publishStatus,
+  }: {
+    storageNode: ERemote<StorageNode>;
+    vowTools: Pick<VowTools, 'asVow' | 'watch' | 'when'>;
+    timerService: ERemote<TimerService>;
+    portfolioContractPublicFacet: ERemote<PortfolioContractPublicFacet>;
+    publishStatus: PublishStatus;
+  },
+) => {
+  // TODO: key/value shapes?
+  const walletByAddress = zone.mapStore<Address, EVMWallet>('wallets');
+
+  const getWalletForAddress = (address: Address): EVMWallet =>
+    provideLazy(walletByAddress, address, () =>
+      harden({
+        portfolios: zone.detached().mapStore('portfolios'),
+      }),
+    );
+
+  const { insertNonce, removeExpiredNonces } = makeNonceManager(zone);
+  const { handleOperation } = prepareEVMPortfolioOperationManager(zone, {
+    vowTools,
+    portfolioContractPublicFacet,
+    publishStatus,
+  });
+
+  const makeEVMWalletMessageHandler = prepareEVMWalletMessageHandler(zone, {
+    vowTools,
+    storageNode,
+    timerService,
+    handleOperation,
+    insertNonce,
+    removeExpiredNonces,
+    getWalletForAddress,
+  });
 
   return harden({ makeEVMWalletMessageHandler });
 };

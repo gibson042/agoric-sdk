@@ -7,18 +7,26 @@ import type {
   FullMessageDetails,
   YmaxOperationDetails,
 } from '@agoric/portfolio-api/src/evm-wallet/message-handler-helpers.js';
+import {
+  getYmaxStandaloneOperationData,
+  getYmaxWitness,
+} from '@agoric/portfolio-api/src/evm-wallet/eip712-messages.js';
+import { getPermitWitnessTransferFromData } from '@agoric/orchestration/src/utils/permit2.js';
 import { makeScalarBigMapStore, type Baggage } from '@agoric/vat-data';
 import type { VowTools } from '@agoric/vow';
 import { prepareVowTools } from '@agoric/vow/vat.js';
 import type { Zone } from '@agoric/zone';
 import { makeDurableZone } from '@agoric/zone/durable.js';
+import { privateKeyToAccount } from 'viem/accounts';
 import {
   makeNonceManager,
   prepareEVMPortfolioOperationManager,
+  prepareEVMWalletMessageHandler,
   type EVMWallet,
 } from '../src/evm-wallet-handler.exo.ts';
 import type { contract, PublishStatus } from '../src/portfolio.contract.ts';
 import type { PortfolioKit } from '../src/portfolio.exo.ts';
+import { evmTrader0PrivateKey } from './mocks.ts';
 
 // ==================== Test Mocking Helpers ====================
 
@@ -545,4 +553,284 @@ test('handleOperation fails for unknown portfolio', async t => {
   t.snapshot([...mockWallet.portfolios.keys()], 'Portfolio IDs');
   t.snapshot(getCalls(), 'Calls');
   t.snapshot(getStatuses(), 'Published Statuses');
+});
+
+// ==================== handleMessage Tests ====================
+
+const ecdsaAccount = privateKeyToAccount(evmTrader0PrivateKey);
+
+const MOCK_VERIFYING_CONTRACT =
+  '0x1234567890abcdef1234567890abcdef12345678' as const;
+const MOCK_PERMIT2_ADDRESS =
+  '0x000000000022D473030F116dDEE9F6B43aC78BA3' as const;
+const MOCK_TOKEN_ADDRESS =
+  '0xaf88d065e77c8cC2239327C5EDb3A432268e5831' as const;
+const CHAIN_ID = 42161n;
+
+const CURRENT_TIME = 1_700_000_000n;
+
+type HandleOperationArgs = Parameters<
+  Parameters<typeof prepareEVMWalletMessageHandler>[1]['handleOperation']
+>[0];
+
+/**
+ * Creates a test setup for handleMessage tests with mock dependencies.
+ */
+const makeMessageHandlerTestSetup = (
+  zone: Zone,
+  vowZoneName: string,
+  options: {
+    namePrefix?: string;
+    /** Current chain time returned by the mock timer */
+    currentTime?: bigint;
+  } = {},
+) => {
+  const { namePrefix = '', currentTime = CURRENT_TIME } = options;
+  const vowTools = prepareVowTools(zone.subZone(vowZoneName));
+
+  const handleOperationCalls: HandleOperationArgs[] = [];
+  const handleOperation = (args: HandleOperationArgs) => {
+    handleOperationCalls.push(args);
+    return vowTools.asVow(() => {});
+  };
+
+  const { insertNonce, removeExpiredNonces } = makeNonceManager(zone);
+
+  const mockStorageNode = makeMockStorageNode(zone, namePrefix);
+
+  const mockWallet = makeMockWallet(zone, [], namePrefix);
+  const walletByAddress = zone.mapStore<string, EVMWallet>(
+    `${namePrefix}walletByAddress`,
+  );
+  const getWalletForAddress = (address: string) => {
+    if (walletByAddress.has(address)) return walletByAddress.get(address);
+    walletByAddress.init(address, mockWallet);
+    return mockWallet;
+  };
+
+  const mockTimerService = zone.exo(
+    `${namePrefix}MockTimerService`,
+    undefined,
+    {
+      getCurrentTimestamp() {
+        return harden({ absValue: currentTime });
+      },
+    },
+  );
+
+  const makeEVMWalletMessageHandler = prepareEVMWalletMessageHandler(zone, {
+    vowTools,
+    storageNode: mockStorageNode,
+    timerService: mockTimerService as any,
+    handleOperation,
+    insertNonce,
+    removeExpiredNonces,
+    getWalletForAddress,
+  });
+
+  const handler = makeEVMWalletMessageHandler();
+
+  return {
+    vowTools,
+    handler,
+    getHandleOperationCalls: () => harden([...handleOperationCalls]),
+  };
+};
+
+test('handleMessage extracts standalone details and delegates to handleOperation', async t => {
+  const { zone } = t.context;
+  const { vowTools, handler, getHandleOperationCalls } =
+    makeMessageHandlerTestSetup(zone, 'vow8', { namePrefix: 'test8_' });
+
+  const deadline = CURRENT_TIME + 3600n;
+  const message = getYmaxStandaloneOperationData(
+    {
+      allocations: [{ instrument: 'Aave_Arbitrum', portion: 100n }],
+      portfolio: 1n,
+      nonce: 1n,
+      deadline,
+    },
+    'SetTargetAllocation',
+    CHAIN_ID,
+    MOCK_VERIFYING_CONTRACT,
+  );
+
+  const signature = await ecdsaAccount.signTypedData(message);
+
+  const vow = handler.handleMessage(
+    harden({
+      ...message,
+      signature,
+    }) as any,
+  );
+  await vowTools.when(vow);
+
+  const calls = getHandleOperationCalls();
+  t.is(calls.length, 1);
+  t.is(calls[0].address, ecdsaAccount.address);
+  t.is(calls[0].nonce, 1n);
+  t.is(calls[0].deadline, deadline);
+  t.is(calls[0].operationDetails.operation, 'SetTargetAllocation');
+  t.deepEqual(calls[0].operationDetails.domain, {
+    name: 'Ymax',
+    version: '1',
+    chainId: CHAIN_ID,
+    verifyingContract: MOCK_VERIFYING_CONTRACT,
+  });
+});
+
+test('handleMessage extracts permit2 details and delegates to handleOperation', async t => {
+  const { zone } = t.context;
+  const { vowTools, handler, getHandleOperationCalls } =
+    makeMessageHandlerTestSetup(zone, 'vow9', {
+      namePrefix: 'test9_',
+    });
+
+  const deadline = CURRENT_TIME + 3600n;
+  const witness = getYmaxWitness('Deposit', {
+    portfolio: 1n,
+  });
+
+  const permit2Message = getPermitWitnessTransferFromData(
+    {
+      permitted: { token: MOCK_TOKEN_ADDRESS, amount: 500_000n },
+      nonce: 1n,
+      deadline,
+      spender: MOCK_VERIFYING_CONTRACT,
+    },
+    MOCK_PERMIT2_ADDRESS,
+    CHAIN_ID,
+    witness,
+  );
+
+  const signature = await ecdsaAccount.signTypedData(permit2Message);
+
+  const vow = handler.handleMessage(
+    harden({
+      ...permit2Message,
+      signature,
+    }) as any,
+  );
+  await vowTools.when(vow);
+
+  const calls = getHandleOperationCalls();
+  t.is(calls.length, 1);
+  t.is(calls[0].address, ecdsaAccount.address);
+  t.is(calls[0].nonce, 1n);
+  t.is(calls[0].deadline, deadline);
+  t.is(calls[0].operationDetails.operation, 'Deposit');
+  t.truthy(calls[0].operationDetails.permitDetails);
+  t.deepEqual(calls[0].operationDetails.domain, {
+    name: 'Ymax',
+    version: '1',
+    chainId: CHAIN_ID,
+    verifyingContract: MOCK_VERIFYING_CONTRACT,
+  });
+});
+
+test('handleMessage rejects expired deadline', async t => {
+  const { zone } = t.context;
+  const currentTime = CURRENT_TIME;
+  const { vowTools, handler } = makeMessageHandlerTestSetup(zone, 'vow10', {
+    namePrefix: 'test10_',
+    currentTime,
+  });
+
+  const expiredDeadline = currentTime - 1n;
+  const message = getYmaxStandaloneOperationData(
+    {
+      portfolio: 1n,
+      nonce: 1n,
+      deadline: expiredDeadline,
+    },
+    'Rebalance',
+    CHAIN_ID,
+    MOCK_VERIFYING_CONTRACT,
+  );
+
+  const signature = await ecdsaAccount.signTypedData(message);
+
+  const vow = handler.handleMessage(
+    harden({
+      ...message,
+      signature,
+    }) as any,
+  );
+
+  await t.throwsAsync(() => vowTools.when(vow), {
+    message: /Deadline has already passed/,
+  });
+});
+
+test('handleMessage rejects deadline too far in the future', async t => {
+  const { zone } = t.context;
+  const currentTime = CURRENT_TIME;
+  const { vowTools, handler } = makeMessageHandlerTestSetup(zone, 'vow11', {
+    namePrefix: 'test11_',
+    currentTime,
+  });
+
+  // MAX_DEADLINE_OFFSET is 1 day = 86400 seconds
+  const tooFarDeadline = currentTime + 86_400n + 1n;
+  const message = getYmaxStandaloneOperationData(
+    {
+      portfolio: 1n,
+      nonce: 1n,
+      deadline: tooFarDeadline,
+    },
+    'Rebalance',
+    CHAIN_ID,
+    MOCK_VERIFYING_CONTRACT,
+  );
+
+  const signature = await ecdsaAccount.signTypedData(message);
+
+  const vow = handler.handleMessage(
+    harden({
+      ...message,
+      signature,
+    }) as any,
+  );
+
+  await t.throwsAsync(() => vowTools.when(vow), {
+    message: /Deadline too far in the future/,
+  });
+});
+
+test('handleMessage rejects replayed nonce', async t => {
+  const { zone } = t.context;
+  const { vowTools, handler } = makeMessageHandlerTestSetup(zone, 'vow12', {
+    namePrefix: 'test12_',
+  });
+
+  const deadline = CURRENT_TIME + 3600n;
+  const makeMsg = async (nonce: bigint) => {
+    const data = getYmaxStandaloneOperationData(
+      {
+        portfolio: 1n,
+        nonce,
+        deadline,
+      },
+      'Rebalance',
+      CHAIN_ID,
+      MOCK_VERIFYING_CONTRACT,
+    );
+    const signature = await ecdsaAccount.signTypedData(data);
+    return harden({
+      ...data,
+      signature,
+    }) as any;
+  };
+
+  // First submission should succeed
+  await vowTools.when(handler.handleMessage(await makeMsg(1n)));
+
+  // Same nonce should be rejected
+  const vow2 = handler.handleMessage(await makeMsg(1n));
+  await t.throwsAsync(() => vowTools.when(vow2), {
+    message: /already used/,
+  });
+
+  // Different nonce should succeed
+  await vowTools.when(handler.handleMessage(await makeMsg(2n)));
 });
