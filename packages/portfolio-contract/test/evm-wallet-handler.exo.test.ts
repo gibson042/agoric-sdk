@@ -98,11 +98,11 @@ const makeMockPortfolioEvmHandler = ({
     },
     deposit(...args: DepositArgs) {
       calls.deposit.push(args);
-      throw Error('Not implemented');
+      return 'deposit-flow';
     },
     rebalance(...args: RebalanceArgs) {
       calls.rebalance.push(args);
-      throw Error('Not implemented');
+      return 'rebalance-flow';
     },
     withdraw(...args: WithdrawArgs) {
       calls.withdraw.push(args);
@@ -545,6 +545,160 @@ test('handleOperation fails for unknown portfolio', async t => {
     address: '0xEvmWalletAddress',
     operationDetails: harden(withdrawOperationDetails),
     nonce: 789n,
+    deadline: 1700000000n,
+  });
+
+  await vowTools.when(resultVow);
+
+  t.snapshot([...mockWallet.portfolios.keys()], 'Portfolio IDs');
+  t.snapshot(getCalls(), 'Calls');
+  t.snapshot(getStatuses(), 'Published Statuses');
+});
+
+test('handleOperation invokes deposit with correct parameters', async t => {
+  const { zone } = t.context;
+  const {
+    vowTools,
+    getCalls,
+    mockWallet,
+    mockStorageNode,
+    getStatuses,
+    handleOperation,
+  } = makeHandleOperationTestSetup(zone, 'vow5', {
+    portfolios: [{ id: 7 }],
+    namePrefix: 'test5_',
+  });
+
+  const depositOperationDetails: YmaxOperationDetails<'Deposit'> &
+    Required<Pick<FullMessageDetails, 'permitDetails'>> = {
+    operation: 'Deposit',
+    domain: {
+      name: 'Ymax',
+      version: '1',
+      chainId: 42161n,
+      verifyingContract: '0xVerifyingContractAddress' as const,
+    },
+    data: {
+      portfolio: 7n,
+    },
+    permitDetails: {
+      chainId: 42161n,
+      token: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831' as const,
+      amount: 500_000n,
+      spender: '0xSpenderAddress' as const,
+      permit2Payload: {
+        owner: '0xOwnerAddress' as const,
+        witness: '0xWitnessData' as const,
+        witnessTypeString: 'WitnessTypeString' as const,
+        permit: {
+          permitted: {
+            token: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831' as const,
+            amount: 500_000n,
+          },
+          nonce: 10n,
+          deadline: 1700000000n,
+        },
+        signature: '0xSignatureData' as const,
+      },
+    },
+  };
+
+  const resultVow = handleOperation({
+    wallet: mockWallet,
+    storageNode: mockStorageNode,
+    address: '0xEvmWalletAddress',
+    operationDetails: harden(depositOperationDetails),
+    nonce: 10n,
+    deadline: 1700000000n,
+  });
+
+  await vowTools.when(resultVow);
+
+  t.snapshot([...mockWallet.portfolios.keys()], 'Portfolio IDs');
+  t.snapshot(getCalls(), 'Calls');
+  t.snapshot(getStatuses(), 'Published Statuses');
+});
+
+test('handleOperation invokes rebalance with correct parameters', async t => {
+  const { zone } = t.context;
+  const {
+    vowTools,
+    getCalls,
+    mockWallet,
+    mockStorageNode,
+    getStatuses,
+    handleOperation,
+  } = makeHandleOperationTestSetup(zone, 'vow6', {
+    portfolios: [{ id: 3 }],
+    namePrefix: 'test6_',
+  });
+
+  const rebalanceOperationDetails: YmaxOperationDetails<'Rebalance'> = {
+    operation: 'Rebalance',
+    domain: {
+      name: 'Ymax',
+      version: '1',
+      chainId: 42161n,
+      verifyingContract: '0xVerifyingContractAddress' as const,
+    },
+    data: {
+      portfolio: 3n,
+    },
+  };
+
+  const resultVow = handleOperation({
+    wallet: mockWallet,
+    storageNode: mockStorageNode,
+    address: '0xEvmWalletAddress',
+    operationDetails: harden(rebalanceOperationDetails),
+    nonce: 50n,
+    deadline: 1700000000n,
+  });
+
+  await vowTools.when(resultVow);
+
+  t.snapshot([...mockWallet.portfolios.keys()], 'Portfolio IDs');
+  t.snapshot(getCalls(), 'Calls');
+  t.snapshot(getStatuses(), 'Published Statuses');
+});
+
+test('handleOperation invokes setTargetAllocation with correct parameters', async t => {
+  const { zone } = t.context;
+  const {
+    vowTools,
+    getCalls,
+    mockWallet,
+    mockStorageNode,
+    getStatuses,
+    handleOperation,
+  } = makeHandleOperationTestSetup(zone, 'vow7', {
+    portfolios: [{ id: 5 }],
+    namePrefix: 'test7_',
+  });
+
+  const setAllocationDetails: YmaxOperationDetails<'SetTargetAllocation'> = {
+    operation: 'SetTargetAllocation',
+    domain: {
+      name: 'Ymax',
+      version: '1',
+      chainId: 42161n,
+      verifyingContract: '0xVerifyingContractAddress' as const,
+    },
+    data: {
+      allocations: [
+        { instrument: 'Aave_Arbitrum', portion: 6000n },
+        { instrument: 'Compound_Base', portion: 4000n },
+      ],
+      portfolio: 5n,
+    },
+  };
+
+  const resultVow = handleOperation({
+    wallet: mockWallet,
+    storageNode: mockStorageNode,
+    address: '0xEvmWalletAddress',
+    operationDetails: harden(setAllocationDetails),
+    nonce: 99n,
     deadline: 1700000000n,
   });
 
