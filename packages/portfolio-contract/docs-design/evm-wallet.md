@@ -266,7 +266,7 @@ sequenceDiagram
 
 ## Signature Verification and Early Validation
 
-The EVM Message Service is a trusted off-chain relay that verifies EIP-712 signatures before submitting messages on-chain. When the EMS has verified the signature, it sends the signer address as `verifiedSigner` alongside the message data. The on-chain EVM Handler trusts this verified address and doesn't perform any signature verification. It does however validate message structure, nonce, deadline, and contract addresses (e.g. permit2 verifying contract). If the message includes a deposit permit, the signature will be validated by the permit2 contract on the EVM chain when the permit is redeemed during the deposit operation.
+The EVM Message Service is a an off-chain relay that the on-chain message handler relies on to verify EIP-712 signatures and other properties of the message before submission. When the EMS has verified the signature, it sends the signer address as `verifiedSigner` alongside the message data. In that case, the on-chain EVM Handler doesn't perform any signature verification itself, and relies on the integrity of the EMS checks. It does however validate message structure, nonce, deadline, and contract addresses (e.g. permit2 verifying contract). If the message includes a deposit permit, the signature will ultimately be validated by the permit2 contract on the EVM chain when the permit is redeemed during the deposit operation.
 
 If `verifiedSigner` is not provided, the EVM Handler falls back to on-chain ECDSA recovery from the signature, which only works for EOA accounts.
 
@@ -319,6 +319,162 @@ sequenceDiagram
   EMH -->> EMH: extract nested operation
   EMH -->> YC: OpenPortfolio(1,000 USDC,<br/>{60% A, 40% B},<br/>signed permit)
 ```
+
+## EVM Message Handling — Component Composition
+
+The EVM message handling pipeline is shared between the off-chain EVM Message Service (EMS) and the on-chain EVM Handler. Both use the same `@agoric/portfolio-api` and `@agoric/orchestration` modules for message parsing and structure validation, ensuring consistent behavior. The EMS additionally performs RPC-based signature verification and balance checks that the on-chain handler cannot easily perform.
+
+### Container Diagram
+
+```mermaid
+graph TB
+    classDef offchain fill:#e6f4ff,stroke:#4b88a2,color:#111
+    classDef onchain fill:#ffe6e6,stroke:#c66,color:#111
+    classDef shared fill:#eef6e8,stroke:#6f8a63,color:#111
+    classDef external fill:#fff0e6,stroke:#c99246,color:#111
+
+    subgraph "User Agent"
+        U[EVM User<br/>signs EIP-712 via MetaMask]
+        UI[Ymax UI<br/>React app]
+    end
+
+    subgraph "ymax-web"
+        EMS[EVM Message Service<br/>Cloudflare Worker]
+    end
+
+    subgraph "Agoric Chain"
+        EMH[EVM Handler<br/>Exo on-chain]
+        YC[Ymax Orchestrator<br/>Orchestration contract]
+    end
+
+    subgraph "Shared Libraries (npm)"
+        PA["@agoric/portfolio-api<br/>EIP-712 types, makeEVMHandlerUtils,<br/>domain validation"]
+        ORCH["@agoric/orchestration<br/>Permit2 helpers, vendored viem,<br/>address comparison"]
+    end
+
+    EVM_CHAIN[EVM Chain<br/>Arbitrum / Base / Ethereum]
+
+    U -->|signs typed data| UI
+    UI -->|POST signed message + address| EMS
+    EMS -->|"invokeEntry: handleMessage(<br/>data, sig, verifiedSigner)"| EMH
+    EMH -->|portfolio operation + permit details| YC
+    YC -->|GMP calls| EVM_CHAIN
+
+    EMS -.->|extractOperationDetailsFromDataWithAddress| PA
+    EMS -.->|encodeType, sameEvmAddress| ORCH
+    EMS -.->|validateSignature, balanceOf, allowance| EVM_CHAIN
+    EMH -.->|"makeEVMHandlerUtils →<br/>extractOperationDetailsFromDataWithAddress"| PA
+    EMH -.->|"recoverTypedDataAddress,<br/>validateTypedData, validatePermit2Domain"| ORCH
+
+    class EMS offchain
+    class EMH,YC onchain
+    class PA,ORCH shared
+    class EVM_CHAIN external
+```
+
+### Component Diagram — Shared Validation Pipeline
+
+This diagram details how the EMS and on-chain EVM Handler compose the same modules to validate EIP-712 messages. `makeEVMHandlerUtils` from `@agoric/portfolio-api` accepts injected viem functions as powers, since viem as a whole uses ambient I/O capabilities which are unavailable on-chain.
+
+```mermaid
+graph TB
+    classDef offchain fill:#e6f4ff,stroke:#4b88a2,color:#111
+    classDef onchain fill:#ffe6e6,stroke:#c66,color:#111
+    classDef shared fill:#eef6e8,stroke:#6f8a63,color:#111
+
+    subgraph "EVM Message Service (off-chain)"
+        emsEntry["submitPermit()<br/>Worker entrypoint"]
+        emsPermitData["permit-data<br/>Validation orchestrator"]
+        emsPermitValidation["permit-validation<br/>balance checks"]
+        emsSigVerify["Signature verification<br/>RPC"]
+        emsRepValidation["validateMessageDomain()<br/>Representative contract check"]
+        viem["viem package"]
+        ydsHook["YDS DB check hook"]
+    end
+
+    subgraph "EVM Handler (on-chain)"
+        handleMessage["handleMessage()<br/>Exo method"]
+        addressResolve["Address resolution<br/>verifiedSigner or ECDSA recovery"]
+        nonceManager["Nonce Manager<br/>Zone MapStore"]
+        handleOperation["handleOperation()<br/>Vow-based router"]
+    end
+
+    subgraph "Portfolio contract"
+        validateEVMDomain["validateEVMMessageDomain()"]
+        validateOpen["validateOpenMessageRepresentativeInfo()<br/>New portfolio"]
+        validateExisting["validateRepresentativeInfo()<br/>Existing portfolio"]
+    end
+
+    subgraph "@agoric/portfolio-api"
+        handlerUtils["makeEVMHandlerUtils(powers)<br/>Factory"]
+        eip712Messages["eip712-messages<br/>Type definitions"]
+        extractOp["extractOperationDetailsFromDataWithAddress()<br/>Pure function"]
+        domainValidation["validateYmaxDomain()<br/>Pure function"]
+    end
+
+    subgraph "@agoric/orchestration"
+        permit2["signatureTransferFrom<br/>Type definitions"]
+        permit2Utils["permit2 utils<br/>validatePermit2Domain,<br/>extractPermitDetails"]
+        viemVendored["vendored viem<br/>Hardened subset"]
+        addressUtils["sameEvmAddress()<br/>Case-insensitive comparison"]
+    end
+
+    %% EMS flow
+    emsEntry -->|"[1] delegates validation"| emsPermitData
+    emsPermitData -->|"[2] extractOperationDetails"| extractOp
+    emsPermitData -->|"[3] verify signature"| emsSigVerify
+    emsPermitData -->|"[4] allowance, balance"| emsPermitValidation
+    emsPermitData -->|"[5] representative<br/>contract check"| emsRepValidation
+    emsEntry -->|"[6] duplicate checks"| ydsHook
+    emsRepValidation -.->|sameEvmAddress| addressUtils
+    emsPermitValidation -.->| uses | viem
+    emsSigVerify -.->| uses | viem
+    handlerUtils -.->| powers off-chain | viem
+
+    %% On-chain handler flow
+    handleMessage -->|"[1] resolve wallet owner"| addressResolve
+    handleMessage -->|"[2] extractOperationDetails"| extractOp
+    handleMessage -->|"[3] insertNonce /<br/>removeExpiredNonces"| nonceManager
+    handleMessage -->|"[4] route operation"| handleOperation
+    handleOperation -->|"[5] validate<br>representative contract"| validateEVMDomain
+    validateEVMDomain -->|"no portfolio"| validateOpen
+    validateEVMDomain -->|"has portfolio"| validateExisting
+    validateOpen -.->|sameEvmAddress| addressUtils
+    validateExisting -.->|sameEvmAddress| addressUtils
+    extractOp -.->|validate Ymax domain| domainValidation
+    extractOp -.->|"validatePermit2Domain,<br/>extractPermitDetails"| permit2Utils
+    addressResolve -.->|"recoverTypedDataAddress<br/>(ECDSA fallback)"| viemVendored
+    handlerUtils -.->|powers on-chain| viemVendored
+
+    %% Generic flow
+    extractOp -.->|provided by| handlerUtils
+
+    class emsEntry,emsPermitData,emsPermitValidation,emsSigVerify,emsRepValidation,ydsHook offchain
+    class handleMessage,addressResolve,nonceManager,handleOperation,validateEVMDomain onchain
+    class validateOpen,validateExisting onchain
+    class handlerUtils,eip712Messages,extractOp,domainValidation,permit2,permit2Utils,viemVendored,addressUtils shared
+```
+
+**Key Components**:
+
+- **submitPermit()**: EMS Worker entrypoint that receives signed EIP-712 data from the UI
+- **permit-data**: Multi-step off-chain validation performing pure and RPC based checks that would be performed on-chain (Agoric or EVM)
+- **Signature verification**: Off-chain RPC based `isValidSignature` (ERC-1271/6492) for all messages. Would only be performed on-chain for processing EVM deposit
+- **YDS hook**: Off-chain state based duplicate checks
+- **handleMessage()**: On-chain entry point that receives signed and verified EIP-712 data from EMS. Relies on EMS to perform signature validation.
+- **Nonce Manager**: On-chain state based duplicate checks
+- **Representative check**: On-chain and off-chain checks that the EIP-712 message is tied to Ymax contract instance through its EVM representative contract address.
+- **extractOperationDetailsFromDataWithAddress()**: Shared pure function that validates typed data structure and extracts operation + permit details.
+
+### Representative Contract Verification
+
+After initial detail extraction, both environments verify that the message's `verifyingContract` matches an expected representative address. For standalone messages, this is the EIP-712 domain verifying contract. For permit2 messages, the verified address is the `spender` field (the Permit2 contract address is the verifying contract in the domain).
+
+The representative contract verification ensures that the message was intended for the corresponding ymax contract instance.
+
+When redeeming a deposit permit, the representative EVM contract enforces that its configured ymax contract is initiating the operation, ensuring that the permit is only used as expected, aka for the benefit of the user that signed the permit.
+
+The accepted representative contracts depend on the remote account type, and multiple values may be supported (e.g. the remote account itself, or the deposit factory / router for the account).
 
 ## Publishing EVM Wallet operation state to VStorage
 
