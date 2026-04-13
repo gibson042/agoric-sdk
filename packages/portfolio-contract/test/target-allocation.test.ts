@@ -15,30 +15,31 @@ test.before(async t => {
 });
 
 test.serial('openPortfolio stores and publishes target allocation', async t => {
-  const { common, trader1 } = t.context;
+  const { common, makeFundedTrader } = t.context;
+  const trader = await makeFundedTrader();
 
   // target: 60% USDN, 40% Aave on Arbitrum
   const targetAllocation = { USDN: 6000n, Aave_Arbitrum: 4000n };
 
   // Open portfolio with target allocation
   await Promise.all([
-    trader1.openPortfolio(t, {}, { targetAllocation }),
+    trader.openPortfolio(t, {}, { targetAllocation }),
     ackNFA(common.utils),
   ]);
 
   // Verify target allocation is published to vstorage
-  const portfolioStatus = await trader1.getPortfolioStatus();
+  const portfolioStatus = await trader.getPortfolioStatus();
   t.deepEqual(portfolioStatus.targetAllocation, targetAllocation);
 });
 
 test.serial('setTargetAllocation rejects invalid pool keys', async t => {
-  const { common, trader2 } = t.context;
-  assert(trader2, 'trader2 must be provisioned by setupTrader');
+  const { common, makeFundedTrader } = t.context;
+  const trader = await makeFundedTrader();
   const { usdc } = common.brands;
 
   // Open portfolio first
   await Promise.all([
-    trader2.openPortfolio(t, { Deposit: usdc.units(1_000) }),
+    trader.openPortfolio(t, { Deposit: usdc.units(1_000) }),
     ackNFA(common.utils, -1),
   ]);
   // Try to rebalance with invalid pool key
@@ -49,7 +50,7 @@ test.serial('setTargetAllocation rejects invalid pool keys', async t => {
 
   await t.throwsAsync(
     () =>
-      trader1.rebalance(
+      trader.rebalance(
         t,
         { give: {}, want: {} },
         { targetAllocation: badTargetAllocation },
