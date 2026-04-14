@@ -11,7 +11,7 @@ import type {
   ContinuingInvitationSpec,
   ContractInvitationSpec,
 } from '@agoric/smart-wallet/src/invitations.js';
-import type { Address as EVMAddress } from 'abitype';
+import type { Address as EvmAddress } from 'abitype';
 import type {
   AxelarChain,
   SupportedChain,
@@ -212,7 +212,7 @@ export type PortfolioGenericRemoteAccountState =
 
 export type PortfolioEVMRemoteAccountState = {
   chainId: `eip155:${number | bigint | string}`;
-  address: EVMAddress;
+  address: EvmAddress;
 } & {
   state: PortfolioRemoteAccountCommonStates;
   /**
@@ -220,7 +220,7 @@ export type PortfolioEVMRemoteAccountState = {
    *
    * Absent for legacy accounts.
    */
-  routerFactory?: EVMAddress;
+  routerFactory?: EvmAddress;
 };
 
 export type PortfolioCosmosRemoteAccountState = {

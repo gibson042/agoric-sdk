@@ -43,7 +43,7 @@ import type { Zone } from '@agoric/zone';
 import { Fail, X, bare } from '@endo/errors';
 import { E } from '@endo/far';
 import { M } from '@endo/patterns';
-import type { Address as EVMAddress } from 'abitype';
+import type { Address as EvmAddress } from 'abitype';
 import { generateNobleForwardingAddress } from './noble-fwd-calc.js';
 import { type LocalAccount, type NobleAccount } from './portfolio.flows.js';
 import { preparePosition, type Position } from './pos.exo.js';
@@ -89,11 +89,11 @@ export type GMPAccountInfo = {
   chainName: AxelarChain;
   err?: string;
   chainId: CaipChainId;
-  remoteAddress: EVMAddress;
+  remoteAddress: EvmAddress;
   // unsupported. routerAddress only present on beta router-based accounts
   routerAddress?: undefined;
   /** the address of the factory that deployed the router-based remote account */
-  routerFactory?: EVMAddress;
+  routerFactory?: EvmAddress;
 };
 type AgoricAccountInfo = {
   namespace: 'cosmos';
@@ -159,7 +159,7 @@ export const makeValidateOpenMessageRepresentativeInfo =
     },
     contracts: EVMContractAddressesMap,
   ) =>
-  (chainId: number | bigint, representativeContract: EVMAddress) => {
+  (chainId: number | bigint, representativeContract: EvmAddress) => {
     const fromChain = eip155ChainIdToAxelarChain[`${chainId}`];
     if (!fromChain) {
       throw Fail`no Axelar chain for EIP-155 chainId ${chainId}`;
@@ -217,7 +217,7 @@ const accountStateByChain = (
     {};
   for (const [n, info] of accounts.entries()) {
     let accountDetails:
-      | { chainId: CaipChainId; address: string; routerFactory?: EVMAddress }
+      | { chainId: CaipChainId; address: string; routerFactory?: EvmAddress }
       | undefined;
 
     switch (info.namespace) {
@@ -840,7 +840,7 @@ export const preparePortfolioKit = (
          */
         validateRepresentativeInfo(
           chainId: bigint | number,
-          representativeContract: EVMAddress,
+          representativeContract: EvmAddress,
           strictForDeposit: boolean = false,
         ) {
           const { accounts } = this.state;
@@ -871,8 +871,8 @@ export const preparePortfolioKit = (
           // remote account factory through the router, or by the legacy factory.
           type RepresentativeConfig = {
             name: string;
-            address: EVMAddress;
-            predictAddress: () => EVMAddress;
+            address: EvmAddress;
+            predictAddress: () => EvmAddress;
           };
 
           const hasRouterConfig =
@@ -917,7 +917,7 @@ export const preparePortfolioKit = (
                 }
               : undefined;
 
-          let remoteAccountAddress: EVMAddress;
+          let remoteAccountAddress: EvmAddress;
           let representativeConfig: RepresentativeConfig | undefined;
           if (accounts.has(fromChain)) {
             const gmpInfo = accounts.get(fromChain) as GMPAccountInfo;
@@ -990,7 +990,7 @@ export const preparePortfolioKit = (
           const { accountAddress } = parseAccountId(sourceAccountId);
 
           const owner = depositDetails.permit2Payload.owner;
-          sameEvmAddress(owner, accountAddress as EVMAddress) ||
+          sameEvmAddress(owner, accountAddress as EvmAddress) ||
             Fail`permit owner ${owner} does not match portfolio source address ${accountAddress}`;
 
           this.facets.evmHandler.validateRepresentativeInfo(
@@ -1075,9 +1075,9 @@ export const preparePortfolioKit = (
           domain,
           address,
         }: {
-          withdrawDetails: { amount: bigint; token: EVMAddress };
+          withdrawDetails: { amount: bigint; token: EvmAddress };
           domain?: Partial<YmaxFullDomain>;
-          address?: EVMAddress;
+          address?: EvmAddress;
         }) {
           const { sourceAccountId } = this.state;
           if (!sourceAccountId) {
@@ -1089,7 +1089,7 @@ export const preparePortfolioKit = (
 
           namespace === 'eip155' ||
             Fail`withdraw sourceAccountId must be in eip155 namespace: ${sourceAccountId}`;
-          const evmAddress = accountAddress as EVMAddress;
+          const evmAddress = accountAddress as EvmAddress;
 
           const chainIdStr = String(
             domain?.chainId ?? reference,
