@@ -237,25 +237,6 @@ test('validateYmaxDomain throws for invalid version', t => {
   });
 });
 
-test('validateYmaxDomain throws without verifyingContract', t => {
-  const domain = {
-    name: 'Ymax',
-    version: '1',
-    chainId: 42161n,
-  };
-
-  t.throws(() => validateYmaxDomain(domain));
-});
-
-test('validateYmaxDomain throws without chainId', t => {
-  const domain = {
-    name: 'Ymax',
-    version: '1',
-  };
-
-  t.throws(() => validateYmaxDomain(domain));
-});
-
 test('validateYmaxDomain validates contract addresses', t => {
   const validAddresses = {
     '42161': MOCK_CONTRACT_ADDRESS,
@@ -295,7 +276,7 @@ test('validateYmaxDomain throws for unknown chain ID', t => {
   };
 
   t.throws(() => validateYmaxDomain(domain, validAddresses), {
-    message: /Unknown chain ID/,
+    message: /chain ID/,
   });
 });
 
@@ -311,8 +292,47 @@ test('validateYmaxDomain throws for wrong contract address', t => {
   };
 
   t.throws(() => validateYmaxDomain(domain, validAddresses), {
-    message: /Invalid verifying contract/,
+    message: /verifying contract/,
   });
+});
+
+test('validateYmaxDomain is case-insensitive for address comparison', t => {
+  const validAddresses = {
+    '42161': MOCK_CONTRACT_ADDRESS,
+  };
+  const domain = {
+    name: 'Ymax',
+    version: '1',
+    chainId: 42161n,
+    verifyingContract: MOCK_CONTRACT_ADDRESS.toUpperCase() as `0x${string}`,
+  };
+
+  // Should pass because sameEvmAddress is case-insensitive
+  t.notThrows(() => validateYmaxDomain(domain, validAddresses));
+});
+
+test('validateYmaxDomain requires both chainId and verifyingContract', t => {
+  // Missing verifyingContract
+  t.throws(
+    () =>
+      validateYmaxDomain({
+        name: 'Ymax',
+        version: '1',
+        chainId: 42161n,
+      }),
+    { message: /chain ID and verifying contract/ },
+  );
+
+  // Missing chainId
+  t.throws(
+    () =>
+      validateYmaxDomain({
+        name: 'Ymax',
+        version: '1',
+        verifyingContract: MOCK_CONTRACT_ADDRESS,
+      }),
+    { message: /chain ID and verifying contract/ },
+  );
 });
 
 test('validateYmaxOperationTypeName passes for valid types', t => {

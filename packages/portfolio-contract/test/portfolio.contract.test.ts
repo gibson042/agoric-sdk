@@ -1089,7 +1089,11 @@ test('start deposit more to same', async t => {
 const setupPlanner = async (
   t,
   overrides: Partial<
-    PortfolioPrivateArgs & { useRouter: boolean; includeEvmKit: boolean }
+    PortfolioPrivateArgs & {
+      useRouter: boolean;
+      useVerifiedSigner: boolean;
+      includeEvmKit: boolean;
+    }
   > = {},
 ): Promise<
   Awaited<ReturnType<typeof setupTrader>> & {
@@ -1097,7 +1101,12 @@ const setupPlanner = async (
     readPublished: ReturnType<typeof makeStorageTools>['readPublished'];
   } & Partial<EvmTraderKit>
 > => {
-  const { useRouter, includeEvmKit = false, ...restOverrides } = overrides;
+  const {
+    useRouter,
+    useVerifiedSigner,
+    includeEvmKit = false,
+    ...restOverrides
+  } = overrides;
   const {
     common,
     zoe,
@@ -1125,6 +1134,7 @@ const setupPlanner = async (
           },
           {
             useRouter,
+            useVerifiedSigner,
           },
         ),
       )
@@ -1165,8 +1175,10 @@ const makeEvmPlannerPowers = async (
   shared: Awaited<ReturnType<typeof setupPlanner>>,
   ix: number,
   useRouter: boolean,
+  useVerifiedSigner: boolean,
 ) => {
-  const label = useRouter ? 'routed' : 'legacy';
+  const baseLabel = useRouter ? 'routed' : 'legacy';
+  const label = useVerifiedSigner ? `${baseLabel} - smart account` : baseLabel;
   const planner1 = makeDirectPlannerClient(
     shared.zoe,
     shared.started.creatorFacet,
@@ -1174,6 +1186,7 @@ const makeEvmPlannerPowers = async (
   const evmKit = await timeAsync(t, `makeEvmTraderKit:${label}`, () =>
     makeEvmTraderKit(shared, {
       useRouter,
+      useVerifiedSigner,
       privateKey: evmTraderPrivateKeys[ix],
     }),
   );
@@ -2026,11 +2039,13 @@ test('open portfolio from Arbitrum, 1000 USDC deposit', async t => {
   };
 
   for (const [ix, useRouter] of [false, true].entries()) {
+    const useVerifiedSigner = useRouter;
     const { label, powers } = await makeEvmPlannerPowers(
       t,
       shared,
       ix,
       useRouter,
+      useVerifiedSigner,
     );
     const { evmTrader } = powers;
     const openResult = await doOpenEvmPortfolio(shared, inputs, powers);
@@ -2111,11 +2126,13 @@ test('evmHandler.withdraw starts a withdraw flow', async t => {
   };
 
   for (const [ix, useRouter] of [false, true].entries()) {
+    const useVerifiedSigner = !useRouter;
     const { label, powers } = await makeEvmPlannerPowers(
       t,
       shared,
       ix,
       useRouter,
+      useVerifiedSigner,
     );
     const { evmTrader } = powers;
     await doOpenEvmPortfolio(shared, inputs, powers);
@@ -2176,11 +2193,13 @@ test('evmHandler.deposit (existing Arbitrum) completes a deposit flow', async t 
   };
 
   for (const [ix, useRouter] of [false, true].entries()) {
+    const useVerifiedSigner = useRouter;
     const { label, powers } = await makeEvmPlannerPowers(
       t,
       shared,
       ix,
       useRouter,
+      useVerifiedSigner,
     );
     const { evmTrader } = powers;
 
@@ -2281,11 +2300,13 @@ test('evmHandler.deposit (Arbitrum -> Base) completes a deposit flow', async t =
   };
 
   for (const [ix, useRouter] of [false, true].entries()) {
+    const useVerifiedSigner = !useRouter;
     const { label, powers } = await makeEvmPlannerPowers(
       t,
       shared,
       ix,
       useRouter,
+      useVerifiedSigner,
     );
     const { evmTrader } = powers;
     await doOpenEvmPortfolio(shared, inputs, powers);
@@ -2410,11 +2431,13 @@ test('evmHandler.rebalance with target allocation sets allocation and starts a r
   };
 
   for (const [ix, useRouter] of [false, true].entries()) {
+    const useVerifiedSigner = useRouter;
     const { label, powers } = await makeEvmPlannerPowers(
       t,
       shared,
       ix,
       useRouter,
+      useVerifiedSigner,
     );
     const { evmTrader } = powers;
     await doOpenEvmPortfolio(
@@ -2486,11 +2509,13 @@ test('evmHandler.rebalance without target allocation uses existing allocation', 
   };
 
   for (const [ix, useRouter] of [false, true].entries()) {
+    const useVerifiedSigner = !useRouter;
     const { label, powers } = await makeEvmPlannerPowers(
       t,
       shared,
       ix,
       useRouter,
+      useVerifiedSigner,
     );
     const { evmTrader } = powers;
     await doOpenEvmPortfolio(shared, inputs, powers);

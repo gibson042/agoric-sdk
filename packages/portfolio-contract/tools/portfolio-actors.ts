@@ -281,6 +281,7 @@ type EvmTraderConfig = {
   readPublished: VstorageKit<PortfolioPublishedPathTypes>['readPublished'];
   when: VowTools['when'];
   useRouter?: boolean;
+  useVerifiedSigner?: boolean;
 };
 
 export const makeEvmTrader = ({
@@ -292,6 +293,7 @@ export const makeEvmTrader = ({
   readPublished,
   when,
   useRouter = false,
+  useVerifiedSigner = false,
 }: EvmTraderConfig) => {
   let nonce = 0n;
   let portfolioPath: string | undefined;
@@ -303,10 +305,15 @@ export const makeEvmTrader = ({
   };
 
   const submitMessage = async (message: TypedDataDefinition) => {
-    const signature = await account.signTypedData(message);
+    // arbitrary signature for "verified signer" simulating what a smart account may use
+    const signature = await (useVerifiedSigner
+      ? '0x533487000ACC0047000516447083'
+      : account.signTypedData(message));
+    const verifiedSigner = useVerifiedSigner ? account.address : undefined;
     const vow = await E(evmWalletHandler).handleMessage({
       ...message,
       signature,
+      verifiedSigner,
     } as any);
     await when(vow);
   };

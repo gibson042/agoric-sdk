@@ -18,7 +18,7 @@ import {
   size,
   stringify,
   toHex
-} from "./chunk-GCI53Z2G.js";
+} from "./chunk-25QYMKH4.js";
 
 // ../../node_modules/viem/_esm/errors/typedData.js
 var InvalidDomainError = class extends BaseError {
@@ -44,96 +44,6 @@ var InvalidStructTypeError = class extends BaseError {
     });
   }
 };
-
-// ../../node_modules/viem/_esm/utils/typedData.js
-function serializeTypedData(parameters) {
-  const { domain: domain_, message: message_, primaryType, types } = parameters;
-  const normalizeData = (struct, data_) => {
-    const data = { ...data_ };
-    for (const param of struct) {
-      const { name, type } = param;
-      if (type === "address")
-        data[name] = data[name].toLowerCase();
-    }
-    return data;
-  };
-  const domain = (() => {
-    if (!types.EIP712Domain)
-      return {};
-    if (!domain_)
-      return {};
-    return normalizeData(types.EIP712Domain, domain_);
-  })();
-  const message = (() => {
-    if (primaryType === "EIP712Domain")
-      return void 0;
-    return normalizeData(types[primaryType], message_);
-  })();
-  return stringify({ domain, message, primaryType, types });
-}
-function validateTypedData(parameters) {
-  const { domain, message, primaryType, types } = parameters;
-  const validateData = (struct, data) => {
-    for (const param of struct) {
-      const { name, type } = param;
-      const value = data[name];
-      const integerMatch = type.match(integerRegex);
-      if (integerMatch && (typeof value === "number" || typeof value === "bigint")) {
-        const [_type, base, size_] = integerMatch;
-        numberToHex(value, {
-          signed: base === "int",
-          size: Number.parseInt(size_) / 8
-        });
-      }
-      if (type === "address" && typeof value === "string" && !isAddress(value))
-        throw new InvalidAddressError({ address: value });
-      const bytesMatch = type.match(bytesRegex);
-      if (bytesMatch) {
-        const [_type, size_] = bytesMatch;
-        if (size_ && size(value) !== Number.parseInt(size_))
-          throw new BytesSizeMismatchError({
-            expectedSize: Number.parseInt(size_),
-            givenSize: size(value)
-          });
-      }
-      const struct2 = types[type];
-      if (struct2) {
-        validateReference(type);
-        validateData(struct2, value);
-      }
-    }
-  };
-  if (types.EIP712Domain && domain) {
-    if (typeof domain !== "object")
-      throw new InvalidDomainError({ domain });
-    validateData(types.EIP712Domain, domain);
-  }
-  if (primaryType !== "EIP712Domain") {
-    if (types[primaryType])
-      validateData(types[primaryType], message);
-    else
-      throw new InvalidPrimaryTypeError({ primaryType, types });
-  }
-}
-function getTypesForEIP712Domain({ domain }) {
-  return [
-    typeof domain?.name === "string" && { name: "name", type: "string" },
-    domain?.version && { name: "version", type: "string" },
-    (typeof domain?.chainId === "number" || typeof domain?.chainId === "bigint") && {
-      name: "chainId",
-      type: "uint256"
-    },
-    domain?.verifyingContract && {
-      name: "verifyingContract",
-      type: "address"
-    },
-    domain?.salt && { name: "salt", type: "bytes32" }
-  ].filter(Boolean);
-}
-function validateReference(type) {
-  if (type === "address" || type === "bool" || type === "string" || type.startsWith("bytes") || type.startsWith("uint") || type.startsWith("int"))
-    throw new InvalidStructTypeError({ type });
-}
 
 // ../../node_modules/viem/_esm/utils/signature/hashTypedData.js
 function hashTypedData(parameters) {
@@ -225,11 +135,8 @@ function encodeField({ types, name, type, value }) {
       keccak256(encodeData({ data: value, primaryType: type, types }))
     ];
   }
-  if (type === "bytes") {
-    const prepend = value.length % 2 ? "0" : "";
-    value = `0x${prepend + value.slice(2)}`;
+  if (type === "bytes")
     return [{ type: "bytes32" }, keccak256(value)];
-  }
   if (type === "string")
     return [{ type: "bytes32" }, keccak256(toHex(value))];
   if (type.lastIndexOf("]") === type.length - 1) {
@@ -246,6 +153,96 @@ function encodeField({ types, name, type, value }) {
     ];
   }
   return [{ type }, value];
+}
+
+// ../../node_modules/viem/_esm/utils/typedData.js
+function serializeTypedData(parameters) {
+  const { domain: domain_, message: message_, primaryType, types } = parameters;
+  const normalizeData = (struct, data_) => {
+    const data = { ...data_ };
+    for (const param of struct) {
+      const { name, type } = param;
+      if (type === "address")
+        data[name] = data[name].toLowerCase();
+    }
+    return data;
+  };
+  const domain = (() => {
+    if (!types.EIP712Domain)
+      return {};
+    if (!domain_)
+      return {};
+    return normalizeData(types.EIP712Domain, domain_);
+  })();
+  const message = (() => {
+    if (primaryType === "EIP712Domain")
+      return void 0;
+    return normalizeData(types[primaryType], message_);
+  })();
+  return stringify({ domain, message, primaryType, types });
+}
+function validateTypedData(parameters) {
+  const { domain, message, primaryType, types } = parameters;
+  const validateData = (struct, data) => {
+    for (const param of struct) {
+      const { name, type } = param;
+      const value = data[name];
+      const integerMatch = type.match(integerRegex);
+      if (integerMatch && (typeof value === "number" || typeof value === "bigint")) {
+        const [_type, base, size_] = integerMatch;
+        numberToHex(value, {
+          signed: base === "int",
+          size: Number.parseInt(size_, 10) / 8
+        });
+      }
+      if (type === "address" && typeof value === "string" && !isAddress(value))
+        throw new InvalidAddressError({ address: value });
+      const bytesMatch = type.match(bytesRegex);
+      if (bytesMatch) {
+        const [_type, size_] = bytesMatch;
+        if (size_ && size(value) !== Number.parseInt(size_, 10))
+          throw new BytesSizeMismatchError({
+            expectedSize: Number.parseInt(size_, 10),
+            givenSize: size(value)
+          });
+      }
+      const struct2 = types[type];
+      if (struct2) {
+        validateReference(type);
+        validateData(struct2, value);
+      }
+    }
+  };
+  if (types.EIP712Domain && domain) {
+    if (typeof domain !== "object")
+      throw new InvalidDomainError({ domain });
+    validateData(types.EIP712Domain, domain);
+  }
+  if (primaryType !== "EIP712Domain") {
+    if (types[primaryType])
+      validateData(types[primaryType], message);
+    else
+      throw new InvalidPrimaryTypeError({ primaryType, types });
+  }
+}
+function getTypesForEIP712Domain({ domain }) {
+  return [
+    typeof domain?.name === "string" && { name: "name", type: "string" },
+    domain?.version && { name: "version", type: "string" },
+    (typeof domain?.chainId === "number" || typeof domain?.chainId === "bigint") && {
+      name: "chainId",
+      type: "uint256"
+    },
+    domain?.verifyingContract && {
+      name: "verifyingContract",
+      type: "address"
+    },
+    domain?.salt && { name: "salt", type: "bytes32" }
+  ].filter(Boolean);
+}
+function validateReference(type) {
+  if (type === "address" || type === "bool" || type === "string" || type.startsWith("bytes") || type.startsWith("uint") || type.startsWith("int"))
+    throw new InvalidStructTypeError({ type });
 }
 
 // ../../node_modules/viem/_esm/accounts/utils/publicKeyToAddress.js
@@ -317,10 +314,11 @@ async function verifyTypedData(parameters) {
 }
 
 export {
-  hashTypedData,
-  hashStruct,
   serializeTypedData,
   validateTypedData,
+  getTypesForEIP712Domain,
+  hashTypedData,
+  hashStruct,
   recoverTypedDataAddress,
   verifyTypedData
 };
