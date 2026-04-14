@@ -5,7 +5,7 @@ import type {
   CaipChainId,
   CosmosChainAddress,
 } from '@agoric/orchestration';
-import type { Address as EVMAddress } from 'abitype';
+import type { Address as EvmAddress } from 'abitype';
 import { expectAssignable, expectNotAssignable, expectType } from 'tsd';
 import type { SupportedChain, YieldProtocol } from '../src/constants.js';
 import { AxelarChain } from '../src/constants.js';
@@ -29,7 +29,7 @@ import type {
 declare const natAmount: NatAmount;
 declare const chainId: CaipChainId;
 declare const accountId: AccountId;
-declare const address: EVMAddress;
+declare const address: EvmAddress;
 declare const bech32Address: Bech32Address;
 declare const cosmosAddress: CosmosChainAddress;
 declare const publishedTx: PublishedTx;
