@@ -259,7 +259,7 @@ export type PoolKeyExt = string;
 export const PoolKeyShapeExt = M.string();
 
 export const TargetAllocationShape: TypedPattern<TargetAllocation> = M.recordOf(
-  M.or(...keys(PoolPlaces)),
+  M.or(...keys(PoolPlaces), ...keys(AxelarChain).map(c => `@${c}`)),
   M.nat(),
 );
 
