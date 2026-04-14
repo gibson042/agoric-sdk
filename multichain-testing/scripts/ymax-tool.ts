@@ -99,6 +99,7 @@ Options:
   --target-allocation     JSON of target allocation (e.g. '{"USDN":6000,"Aave_Arbitrum":4000}')
   --evm <chainId>         Use an EVM wallet and deposit from the given chain (e.g. 'Ethereum')
   --evm-router <chainId>  Use an EVM router wallet and deposit from the given chain (e.g. 'Ethereum')
+  --evm-verified-signer   Send the signer address as verified for EVM messages
   --contract=[ymax0]      Contract key in agoricNames.instance ('ymax0' or 'ymax1'), used for
                           portfolios and invitations
   --description=[planner] For use with --redeem ('planner', 'resolver', or 'evmWalletHandler',
@@ -148,6 +149,7 @@ const parseToolArgs = (argv: string[]) =>
       'target-allocation': { type: 'string' },
       evm: { type: 'string', default: '' },
       'evm-router': { type: 'string', default: '' },
+      'evm-verified-signer': { type: 'boolean', default: false },
       redeem: { type: 'boolean', default: false },
       contract: { type: 'string', default: 'ymax0' },
       description: { type: 'string', default: 'planner' },
@@ -317,6 +319,7 @@ const openPositionsEVM = async ({
   axelarChain,
   useRouter = false,
   id = `open-${new Date(when).toISOString()}`,
+  verifiedSigner = false,
 }: {
   sig: SigningSmartWalletKit;
   evmAccount: HDAccount;
@@ -327,6 +330,7 @@ const openPositionsEVM = async ({
   contract?: string;
   id?: string;
   targetAllocation: TargetAllocation;
+  verifiedSigner?: boolean;
 }) => {
   // TODO: support router
 
@@ -386,7 +390,13 @@ const openPositionsEVM = async ({
         id,
         targetName: 'evmWalletHandler',
         method: 'handleMessage',
-        args: [{ ...openPortfolioMessage, signature } as CopyRecord],
+        args: [
+          {
+            ...openPortfolioMessage,
+            signature,
+            ...(verifiedSigner ? { verifiedSigner: evmAccount.address } : {}),
+          } as CopyRecord,
+        ],
       },
     }),
   );
@@ -837,6 +847,7 @@ const main = async (
         axelarChainConfig,
         axelarChain,
         useRouter: !!values['evm-router'],
+        verifiedSigner: values['evm-verified-signer'] || false,
       });
       trace('opened', opened);
     } else {
