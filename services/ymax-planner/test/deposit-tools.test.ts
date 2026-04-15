@@ -1,5 +1,8 @@
 /** @file test for deposit tools */
 import test from 'ava';
+import type { Assertions } from 'ava';
+
+import type { PartialDeep } from 'type-fest';
 
 import {
   ACCOUNT_DUST_EPSILON,
@@ -7,6 +10,7 @@ import {
   SupportedChain,
   type AssetPlaceRef,
   type InterChainAccountRef,
+  type MovementDesc,
   type StatusFor,
 } from '@agoric/portfolio-api';
 import type {
@@ -76,8 +80,22 @@ const noMinChainRecords = plannerContext.network.chains.map(chain => ({
 
 const emptyPlan = harden({ flow: [], order: undefined });
 
-const makeMovementDesc = (src: string, dest: string, value: bigint) => {
+const makeMovementDesc = (
+  src: AssetPlaceRef,
+  dest: AssetPlaceRef,
+  value: bigint,
+) => {
   return { src, dest, amount: { value } };
+};
+
+/** A helper to support prettier-friendly plan flow assertions. */
+const assertPlanFlow = (
+  t: Assertions,
+  label: string,
+  flow: MovementDesc[],
+  expectedFlow: PartialDeep<MovementDesc>[],
+) => {
+  arrayIsLike(t, flow, expectedFlow, label);
 };
 
 /**
@@ -891,6 +909,72 @@ test('planRebalanceToAllocations regression - CCTPv2 multi-source rebalance', as
   });
 
   t.snapshot(plan, 'CCTPv2 multi-source rebalance');
+});
+
+test('@<ChainName> USDC target allocations', async t => {
+  const currentBalances = {
+    '@Base': makeDeposit(scale6(10)),
+    Aave_Base: makeDeposit(scale6(10)),
+  };
+
+  const withdrawPlan = await planWithdrawFromAllocations({
+    ...plannerContext,
+    currentBalances,
+    targetAllocation: objectMap(currentBalances, amt => amt.value),
+    amount: makeDeposit(scale6(10)),
+  });
+  assertPlanFlow(t, 'withdraw from mixed targets', withdrawPlan.flow, [
+    makeMovementDesc('Aave_Base', '@Base', scale6(5)),
+    makeMovementDesc('@Base', '@agoric', scale6(10)),
+    makeMovementDesc('@agoric', '<Cash>', scale6(10)),
+  ]);
+
+  const depositPlan = await planDepositToAllocations({
+    ...plannerContext,
+    currentBalances,
+    targetAllocation: objectMap(currentBalances, amt => amt.value),
+    amount: makeDeposit(scale6(10)),
+  });
+  assertPlanFlow(t, 'deposit to mixed targets', depositPlan.flow, [
+    makeMovementDesc('<Deposit>', '@agoric', scale6(10)),
+    makeMovementDesc('@agoric', '@noble', scale6(10)),
+    makeMovementDesc('@noble', '@Base', scale6(10)),
+    makeMovementDesc('@Base', 'Aave_Base', scale6(5)),
+  ]);
+
+  const depositAndRebalancePlan = await planDepositToAllocations({
+    ...plannerContext,
+    currentBalances,
+    targetAllocation: { '@Base': 100n },
+    amount: makeDeposit(scale6(10)),
+  });
+  assertPlanFlow(t, 'deposit and consolidate', depositAndRebalancePlan.flow, [
+    makeMovementDesc('Aave_Base', '@Base', scale6(10)),
+    makeMovementDesc('<Deposit>', '@agoric', scale6(10)),
+    makeMovementDesc('@agoric', '@noble', scale6(10)),
+    makeMovementDesc('@noble', '@Base', scale6(10)),
+  ]);
+
+  const rebalancePlan = await planRebalanceToAllocations({
+    ...plannerContext,
+    currentBalances,
+    targetAllocation: { '@Base': 100n },
+  });
+  assertPlanFlow(t, 'rebalance into chain', rebalancePlan.flow, [
+    makeMovementDesc('Aave_Base', '@Base', scale6(10)),
+  ]);
+
+  const rerebalancePlan = await planRebalanceToAllocations({
+    ...plannerContext,
+    currentBalances,
+    targetAllocation: { '@Base': 50n, '@Optimism': 50n },
+  });
+  assertPlanFlow(t, 'rebalance into chains', rerebalancePlan.flow, [
+    makeMovementDesc('Aave_Base', '@Base', scale6(10)),
+    makeMovementDesc('@Base', '@agoric', scale6(10)),
+    makeMovementDesc('@agoric', '@noble', scale6(10)),
+    makeMovementDesc('@noble', '@Optimism', scale6(10)),
+  ]);
 });
 
 // TODO(AGO-459): These tests cover the proportional reallocation of AGO-373,
