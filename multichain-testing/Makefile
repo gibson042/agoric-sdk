@@ -234,25 +234,23 @@ publish-ymax: ,$(CONTRACT_INSTANCE)-installed
 AGORIC_NET ?= devnet
 YMAX_TOOL=./scripts/ymax-tool.ts
 YMAX_ADMIN=../packages/portfolio-deploy/scripts/wallet-admin.ts
-PRIVATE_ARGS_OVERRIDES_SRC=$(DEPLOY)/config/private-args-overrides/$(if $(filter main,$(AGORIC_NET)),main,devnet).json
+# Optional operator-supplied JSON file; omitted means privateArgsOverrides = {}
+PRIVATE_ARGS_OVERRIDES ?=
+OVERRIDES_ARG=$(if $(PRIVATE_ARGS_OVERRIDES),--overrides $(PRIVATE_ARGS_OVERRIDES),)
 
 ,$(CONTRACT_INSTANCE)-installed: $(DEPLOY)/dist/bundle-$(CONTRACT_INSTANCE).json
 	agd keys --keyring-backend=test show $(PUBLISHER)
 	AGORIC_NET=devnet ./scripts/install-bundle.ts $< >$@ || (rm $@; false)
-
-,privateArgsOverrides.json:
-	@echo "Using AGORIC_NET=$(AGORIC_NET)"
-	cp $(PRIVATE_ARGS_OVERRIDES_SRC) $@ || (rm $@; false)
 
 yctrl-redeploy: ,$(CONTRACT_INSTANCE)-deployed
 
 NETCONFIG=https://devnet.agoric.net/network-config
 CONTRACT_FLAG=--contract=$(CONTRACT_INSTANCE)
 
-,$(CONTRACT_INSTANCE)-deployed: $(DEPLOY)/dist/bundle-$(CONTRACT_INSTANCE).json ,$(CONTRACT_INSTANCE)-bundle-id ,$(CONTRACT_INSTANCE)-installed ,privateArgsOverrides.json
+,$(CONTRACT_INSTANCE)-deployed: $(DEPLOY)/dist/bundle-$(CONTRACT_INSTANCE).json ,$(CONTRACT_INSTANCE)-bundle-id ,$(CONTRACT_INSTANCE)-installed
 	@[ -n "$$MNEMONIC" ] || (echo "ymaxControl MNEMONIC not set; see gov keys sheet"; false)
 	if [ -n "$$REASON" ]; then AGORIC_NET=devnet $(YMAX_ADMIN) $(DEPLOY)/src/ymax-terminate.ts --contract $(CONTRACT_INSTANCE) --message "$(REASON)"; else true; fi
-	AGORIC_NET=devnet $(YMAX_ADMIN) $(DEPLOY)/src/ymax-install-and-start.ts --contract $(CONTRACT_INSTANCE) --bundle "$$(cat ,$(CONTRACT_INSTANCE)-bundle-id)" --overrides ,privateArgsOverrides.json
+	AGORIC_NET=devnet $(YMAX_ADMIN) $(DEPLOY)/src/ymax-install-and-start.ts --contract $(CONTRACT_INSTANCE) --bundle "$$(cat ,$(CONTRACT_INSTANCE)-bundle-id)" $(OVERRIDES_ARG)
 	agoric follow -B $(NETCONFIG) -lF :published.agoricNames.instance >$@ || (rm $@; false)
 
 ,upgrade: $(DEPLOY)/dist/bundle-$(CONTRACT_INSTANCE).json ,$(CONTRACT_INSTANCE)-bundle-id ,$(CONTRACT_INSTANCE)-installed

@@ -12,7 +12,9 @@ AGORIC=agoric
 JQ=jq
 
 DEPLOY=../../packages/portfolio-deploy
-OVERRIDES_SRC=$(DEPLOY)/config/private-args-overrides/$(if $(filter main,$(AGORIC_NET)),main,devnet).json
+# Optional operator-supplied JSON file; omitted means privateArgsOverrides = {}
+PRIVATE_ARGS_OVERRIDES ?=
+OVERRIDES_ARG=$(if $(PRIVATE_ARGS_OVERRIDES),--overrides $(PRIVATE_ARGS_OVERRIDES),)
 
 ##
 # default make target: no chain interaction
@@ -77,14 +79,10 @@ $(CONTRACT)-terminate:
 	AGORIC_NET=$(AGORIC_NET) \
 		$(WALLET_ADMIN) $(DEPLOY)/src/ymax-terminate.ts --contract $(CONTRACT) --message "$(REASON)"
 
-,privateArgsOverrides.json:
-	@echo "Using AGORIC_NET=$(AGORIC_NET)"
-	cp $(OVERRIDES_SRC) $@
-
 NETCONFIG=https://$(AGORIC_NET).agoric.net/network-config
-,$(CONTRACT)-deployed: ,ymax-bundle-id ,privateArgsOverrides.json ,ymax-installed
+,$(CONTRACT)-deployed: ,ymax-bundle-id ,ymax-installed
 	AGORIC_NET=$(AGORIC_NET) \
-		$(WALLET_ADMIN) $(DEPLOY)/src/ymax-install-and-start.ts --contract $(CONTRACT) --bundle "$$(cat ,ymax-bundle-id)" --overrides ,privateArgsOverrides.json
+		$(WALLET_ADMIN) $(DEPLOY)/src/ymax-install-and-start.ts --contract $(CONTRACT) --bundle "$$(cat ,ymax-bundle-id)" $(OVERRIDES_ARG)
 	agoric follow -B $(NETCONFIG) -lF :published.agoricNames.instance >$@ || (rm $@; false)
 	tail $@
 
@@ -149,9 +147,9 @@ fund-fee-acct: ,$(CONTRACT)-node.json
 check-control-account:
 	$(WALLET_ADMIN) $(DEPLOY)/src/ymax-repl.ts </dev/null | grep $(YMAX_CONTROL_ADDR)
 
-,$(CONTRACT)-upgraded: ,ymax-bundle-id ,ymax-installed ,privateArgsOverrides.json
+,$(CONTRACT)-upgraded: ,ymax-bundle-id ,ymax-installed
 	AGORIC_NET=$(AGORIC_NET) \
-		$(WALLET_ADMIN) $(DEPLOY)/src/ymax-upgrade.ts --contract $(CONTRACT) --overrides ,privateArgsOverrides.json --bundle "$$(cat ,ymax-bundle-id)" >$@ || (mv $@ $(@)_ERR; false)
+		$(WALLET_ADMIN) $(DEPLOY)/src/ymax-upgrade.ts --contract $(CONTRACT) $(OVERRIDES_ARG) --bundle "$$(cat ,ymax-bundle-id)" >$@ || (mv $@ $(@)_ERR; false)
 
 ,$(CONTRACT)-upgraded-repl: ,ymax-upgrade.js ,ymax-installed
 	AGORIC_NET=$(AGORIC_NET) \
