@@ -14,6 +14,10 @@ on:
         required: true
         type: string
         description: 'Identifier for the test suite that will be used as part of the filename name for logs'
+      sdk_build_id:
+        required: true
+        type: string
+        description: 'Depot build ID for the prebuilt linux/amd64 SDK image to pull and load into kind'
 
 jobs:
   multichain-e2e:
@@ -24,10 +28,10 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    env:
+      DEPOT_PROJECT_ID: '0gtvlr9g8j'
 
     steps:
-      # We use Depot for the SDK image build so multichain E2E benefits from the
-      # shared remote builder cache used by the other container workflows.
       - uses: depot/setup-action@v1
         with:
           oidc: true
@@ -85,15 +89,11 @@ jobs:
         run: yarn install
         working-directory: ./agoric-sdk/multichain-testing
 
-      - name: docker build (sdk)
-        # Produces local ghcr.io/agoric/agoric-sdk:dev used in Kind.
-        run: |
-          # --provenance=false: Depot generates attestation manifests that
-          # kind's `ctr images import --all-platforms` cannot resolve, causing
-          # "content digest: not found" errors. Provenance is unnecessary for
-          # this local-only image that is loaded directly into kind.
-          DOCKER_BUILD='depot build --load --provenance=false' make docker-build-sdk TAG=dev
-        working-directory: ./agoric-sdk/packages/deployment
+      - name: Import prebuilt SDK image
+        uses: depot/pull-action@v1
+        with:
+          build-id: ${{ inputs.sdk_build_id }}
+          tags: ghcr.io/agoric/agoric-sdk:dev
 
       - name: Setup kind cluster
         uses: helm/kind-action@v1.8.0
