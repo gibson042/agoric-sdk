@@ -713,7 +713,7 @@ test('planRebalanceToAllocations regression - single source, 10x', async t => {
   t.snapshot(plan, 'raw plan');
 });
 
-test.failing('planDepositToAllocations regression - AGO-496, portfolio177', async t => {
+test('planDepositToAllocations regression - AGO-496, portfolio177', async t => {
   const plan = await planDepositToAllocations({
     ...plannerContext,
     targetAllocation: {

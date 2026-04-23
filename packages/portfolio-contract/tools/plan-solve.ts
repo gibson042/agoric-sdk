@@ -407,7 +407,7 @@ export const solveRebalance = async (
   // This two-step approach seems to dodge some IEEE 754 rounding issues.
   const pickSolution = solveLPModel(model, graph, { precision: 1e-15 });
   const refinedModel = refineModel(model, graph, pickSolution);
-  const solution = solveLPModel(refinedModel, graph);
+  const solution = solveLPModel(refinedModel, graph, { precision: 1e-3 });
 
   const flows: SolvedEdgeFlow[] = [];
   for (const edge of graph.edges) {
