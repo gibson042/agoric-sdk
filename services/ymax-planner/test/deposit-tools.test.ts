@@ -713,6 +713,29 @@ test('planRebalanceToAllocations regression - single source, 10x', async t => {
   t.snapshot(plan, 'raw plan');
 });
 
+test.failing('planDepositToAllocations regression - AGO-496, portfolio177', async t => {
+  const plan = await planDepositToAllocations({
+    ...plannerContext,
+    targetAllocation: {
+      Aave_Ethereum: 34n,
+      Compound_Ethereum: 33n,
+      Aave_Base: 33n,
+    },
+    currentBalances: {},
+    amount: makeDeposit(scale6(25_000)),
+    fromChain: 'Ethereum',
+  });
+  arrayIsLike(t, plan?.flow, [
+    makeMovementDesc('+Ethereum', '@Ethereum', scale6(25_000)),
+    makeMovementDesc('@Ethereum', 'Aave_Ethereum', scale6(8500)),
+    makeMovementDesc('@Ethereum', 'Compound_Ethereum', scale6(8250)),
+    makeMovementDesc('@Ethereum', '@agoric', scale6(8250)),
+    makeMovementDesc('@agoric', '@noble', scale6(8250)),
+    makeMovementDesc('@noble', '@Base', scale6(8250)),
+    makeMovementDesc('@Base', 'Aave_Base', scale6(8250)),
+  ]);
+});
+
 test('planRebalanceToAllocations regression - multiple sources', async t => {
   const targetAllocation = {
     Aave_Arbitrum: 10n,
