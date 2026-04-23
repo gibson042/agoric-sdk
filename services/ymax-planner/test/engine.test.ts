@@ -19,7 +19,12 @@ import {
   boardSlottingMarshaller,
 } from '@agoric/client-utils';
 import type { SigningSmartWalletKit, VStorage } from '@agoric/client-utils';
-import { partialMap, typedEntries } from '@agoric/internal';
+import {
+  defineName,
+  fromTypedEntries,
+  partialMap,
+  typedEntries,
+} from '@agoric/internal';
 import type { RecordFromTuple } from '@agoric/internal';
 import { compareByCodePoints } from '@agoric/internal/src/kv-store.js';
 import type { StreamCell } from '@agoric/internal/src/lib-chainStorage.js';
@@ -52,7 +57,6 @@ import type {
   ProcessPortfolioPowers,
   VstorageEventDetail,
 } from '../src/engine.ts';
-import { setLogTarget } from '../src/logger.ts';
 import {
   createMockEnginePowers,
   makeNotImplemented,
@@ -417,8 +421,20 @@ const fakePortfolioKit = async ({
   const portfolioId = 123;
   const portfolioPath = `${portfoliosPathPrefix}.portfolio${portfolioId}`;
 
+  const consoleWrites: Array<{ level: string; args: unknown[] }> = [];
+  const consoleMethodNames = ['debug', 'info', 'log', 'warn', 'error'];
+  const mockConsole = fromTypedEntries(
+    consoleMethodNames.map(level => {
+      const method = defineName(level, (...args: unknown[]) => {
+        consoleWrites.push({ level, args });
+      });
+      return [level, method] as [keyof Console, (...args: unknown[]) => void];
+    }),
+  );
+
   const powers: Powers & ProcessPortfolioPowers = {
     ...createMockEnginePowers(),
+    console: mockConsole,
     signingSmartWalletKit,
     walletStore,
     isDryRun: true,
@@ -475,6 +491,7 @@ const fakePortfolioKit = async ({
     initialPortfolioStatus,
     powers,
     testPowers: {
+      consoleWrites,
       getBlockHeight,
       getBridgeSends,
       updateBlockHeight,
@@ -510,100 +527,95 @@ test('ignore additional balances', t => {
 });
 
 // #region processPortfolioEvents
-// Internal use of AsyncLocalStorage seems to require serial test execution.
-test.serial(
-  'processPortfolioEvents only resolves flows for new portfolio states',
-  async t => {
-    const kit = await fakePortfolioKit({
-      accounts: { noble: AmountMath.make(depositBrand, 0n) },
-      otherBalances: { usdn: AmountMath.make(depositBrand, 0n) },
-    });
-    const { portfolioId, portfolioPath, initialPortfolioStatus, powers } = kit;
-    const { getBridgeSends, updateBlockHeight, updateVstorage } =
-      kit.testPowers;
+test('processPortfolioEvents only resolves flows for new portfolio states', async t => {
+  const kit = await fakePortfolioKit({
+    accounts: { noble: AmountMath.make(depositBrand, 0n) },
+    otherBalances: { usdn: AmountMath.make(depositBrand, 0n) },
+  });
+  const { portfolioId, portfolioPath, initialPortfolioStatus, powers } = kit;
+  const { getBridgeSends, updateBlockHeight, updateVstorage } = kit.testPowers;
 
-    const flowId = 5;
-    const portfolioStatus = {
-      ...initialPortfolioStatus,
-      rebalanceCount: 0,
-      positionKeys: ['USDN'],
-      targetAllocation: {
-        USDN: 1n,
+  const flowId = 5;
+  const portfolioStatus = {
+    ...initialPortfolioStatus,
+    rebalanceCount: 0,
+    positionKeys: ['USDN'],
+    targetAllocation: {
+      USDN: 1n,
+    },
+    flowCount: 1,
+    flowsRunning: {
+      [`flow${flowId}`]: {
+        type: 'deposit',
+        amount: AmountMath.make(depositBrand, 1_000_000n),
       },
-      flowCount: 1,
-      flowsRunning: {
-        [`flow${flowId}`]: {
-          type: 'deposit',
-          amount: AmountMath.make(depositBrand, 1_000_000n),
-        },
-      },
-    };
-    const writePortfolioStatus = () => {
-      updateVstorage(portfolioPath, 'set', {
-        object: { ...portfolioStatus },
-        wrap: true,
-      });
-    };
+    },
+  };
+  const writePortfolioStatus = () => {
+    updateVstorage(portfolioPath, 'set', {
+      object: { ...portfolioStatus },
+      wrap: true,
+    });
+  };
+  writePortfolioStatus();
+
+  const memory: any = { deferrals: [] as any[] };
+  const processNextBlock = async () => {
+    const blockHeight = updateBlockHeight();
+    portfolioStatus.rebalanceCount += 1;
     writePortfolioStatus();
-
-    const memory: any = { deferrals: [] as any[] };
-    const processNextBlock = async () => {
-      const blockHeight = updateBlockHeight();
-      portfolioStatus.rebalanceCount += 1;
-      writePortfolioStatus();
-      const vstorageEventDetail = makeVstorageEventDetail(
-        blockHeight,
-        portfolioPath,
-        harden({ ...portfolioStatus }),
-      );
-      await processPortfolioEvents(
-        [vstorageEventDetail],
-        blockHeight,
-        memory,
-        powers,
-      );
-    };
-    await processNextBlock();
-    await processNextBlock();
-
-    const bridgeActions = getBridgeSends().map(invocation => invocation.action);
-    arrayIsLike(
-      t,
-      bridgeActions,
-      [bridgeActions[0]],
-      'planner invoked exactly once',
+    const vstorageEventDetail = makeVstorageEventDetail(
+      blockHeight,
+      portfolioPath,
+      harden({ ...portfolioStatus }),
     );
-    t.like(bridgeActions[0], {
-      method: 'invokeEntry',
-      message: {
-        targetName: 'planner',
-        method: 'resolvePlan',
-      },
-    });
-    const { message } = bridgeActions[0] as InvokeStoreEntryAction;
-    arrayIsLike(
-      t,
-      message.args,
-      [
-        portfolioId,
-        flowId,
-        message.args[2],
-        portfolioStatus.policyVersion,
-        message.args[4],
-      ],
-      'resolvePlan args',
+    await processPortfolioEvents(
+      [vstorageEventDetail],
+      blockHeight,
+      memory,
+      powers,
     );
-    t.true(Array.isArray(message.args[2]));
-    t.true(
-      (message.args[2] as unknown[]).length > 0,
-      'planner receives non-empty steps',
-    );
-    t.is(memory.snapshots?.get(`portfolio${portfolioId}`)?.repeats, 1);
-    t.is(powers.portfolioKeyForDepositAddr.size, 0);
-  },
-);
+  };
+  await processNextBlock();
+  await processNextBlock();
 
-test.serial('processPortfolioEvents runs flows in sequence', async t => {
+  const bridgeActions = getBridgeSends().map(invocation => invocation.action);
+  arrayIsLike(
+    t,
+    bridgeActions,
+    [bridgeActions[0]],
+    'planner invoked exactly once',
+  );
+  t.like(bridgeActions[0], {
+    method: 'invokeEntry',
+    message: {
+      targetName: 'planner',
+      method: 'resolvePlan',
+    },
+  });
+  const { message } = bridgeActions[0] as InvokeStoreEntryAction;
+  arrayIsLike(
+    t,
+    message.args,
+    [
+      portfolioId,
+      flowId,
+      message.args[2],
+      portfolioStatus.policyVersion,
+      message.args[4],
+    ],
+    'resolvePlan args',
+  );
+  t.true(Array.isArray(message.args[2]));
+  t.true(
+    (message.args[2] as unknown[]).length > 0,
+    'planner receives non-empty steps',
+  );
+  t.is(memory.snapshots?.get(`portfolio${portfolioId}`)?.repeats, 1);
+  t.is(powers.portfolioKeyForDepositAddr.size, 0);
+});
+
+test('processPortfolioEvents runs flows in sequence', async t => {
   const kit = await fakePortfolioKit({
     accounts: { noble: makeDeposit(0n) },
     otherBalances: { usdn: makeDeposit(0n) },
@@ -707,7 +719,7 @@ test.serial('processPortfolioEvents runs flows in sequence', async t => {
   }
 });
 
-test.serial('startFlow logs include traceId prefix', async t => {
+test('startFlow logs include traceId prefix', async t => {
   const kit = await fakePortfolioKit({
     accounts: { noble: AmountMath.make(depositBrand, 1_000_000n) },
   });
@@ -719,7 +731,7 @@ test.serial('startFlow logs include traceId prefix', async t => {
     initialPortfolioStatus,
     powers,
   } = kit;
-  const { updateVstorage } = kit.testPowers;
+  const { consoleWrites, updateVstorage } = kit.testPowers;
 
   const fakeWithdrawFlow = (flowId: number, amountValue: bigint) => ({
     flowCount: 1,
@@ -750,36 +762,24 @@ test.serial('startFlow logs include traceId prefix', async t => {
     wrap: true,
   });
 
-  const captured: Array<{ level: 'debug' | 'info'; args: any[] }> = [];
-  const originalLogTarget = console;
-  try {
-    setLogTarget({
-      ...console,
-      debug: (...args: any[]) => captured.push({ level: 'debug', args }),
-      info: (...args: any[]) => captured.push({ level: 'info', args }),
-    });
+  await processPortfolioEvents(
+    [
+      makeVstorageEventDetail(blockHeight, portfolioPath, portfolioStatus),
+      makeVstorageEventDetail(blockHeight, portfolioPath2, portfolioStatus2),
+    ],
+    blockHeight,
+    { deferrals: [] },
+    powers,
+  );
 
-    await processPortfolioEvents(
-      [
-        makeVstorageEventDetail(blockHeight, portfolioPath, portfolioStatus),
-        makeVstorageEventDetail(blockHeight, portfolioPath2, portfolioStatus2),
-      ],
-      blockHeight,
-      { deferrals: [] },
-      powers,
-    );
-  } finally {
-    setLogTarget(originalLogTarget);
-  }
-
-  const tracedLogs = captured.filter(
+  const tracedLogs = consoleWrites.filter(
     ({ level, args }) =>
-      ['debug', 'info'].includes(level) &&
-      /\[portfolio[0-9]+[.]flow[0-9]+\] /.test(args[0]),
+      ['debug', 'log'].includes(level) &&
+      /\[portfolio[0-9]+[.]flow[0-9]+\]/.test(args[0] as string),
   );
   arrayIsLike(t, tracedLogs, [
-    { args: { 0: `[${portfolioKey}.flow4] `, 1: 'rejectPlan', length: 6 } },
-    { args: { 0: `[${portfolioKey2}.flow2] `, 1: 'resolvePlan', length: 6 } },
+    { args: { 0: `[${portfolioKey}.flow4]`, 1: 'rejectPlan', length: 6 } },
+    { args: { 0: `[${portfolioKey2}.flow2]`, 1: 'resolvePlan', length: 6 } },
   ]);
 });
 
@@ -880,7 +880,7 @@ const testRejection = test.macro(
   },
 );
 
-test.serial('no-step flows are rejected', testRejection, {
+test('no-step flows are rejected', testRejection, {
   flow: {
     type: 'deposit',
     amount: AmountMath.make(depositBrand, 1_000_000n),
@@ -888,7 +888,7 @@ test.serial('no-step flows are rejected', testRejection, {
   expectedReason: 'Nothing to do for this operation.',
 });
 
-test.serial('invalid targetAllocation is rejected', testRejection, {
+test('invalid targetAllocation is rejected', testRejection, {
   portfolioStatusOverrides: { targetAllocation: { USDN: 0n } },
   flow: {
     type: 'deposit',
@@ -898,7 +898,7 @@ test.serial('invalid targetAllocation is rejected', testRejection, {
 });
 
 // Try to withdraw $1 when all links have minimum throughput $10.
-test.serial('unsolvable flow is rejected', testRejection, {
+test('unsolvable flow is rejected', testRejection, {
   portfolioAccounts: {
     Ethereum: AmountMath.make(depositBrand, 2_000_000n),
   },
@@ -918,7 +918,7 @@ test.serial('unsolvable flow is rejected', testRejection, {
 });
 
 // Try to withdraw $2 from a total of $1.
-test.serial('excessive withdrawal is rejected', testRejection, {
+test('excessive withdrawal is rejected', testRejection, {
   portfolioAccounts: {
     Ethereum: AmountMath.make(depositBrand, 1_000_000n),
   },
