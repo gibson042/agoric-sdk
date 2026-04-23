@@ -61,7 +61,6 @@ import type { EvmAddress } from '@agoric/fast-usdc';
 import type { WebSocketProvider } from 'ethers';
 import type { CosmosRPCClient, SubscriptionResponse } from './cosmos-rpc.ts';
 import type { Sdk as SpectrumBlockchainSdk } from './graphql/api-spectrum-blockchain/__generated/sdk.ts';
-import { logger, runWithFlowTrace } from './logger.ts';
 import type {
   EvmChain,
   EvmContext,
@@ -171,6 +170,7 @@ export const makeVstorageEvent = (
 };
 
 export type Powers = {
+  console?: Pick<Console, 'debug' | 'info' | 'log' | 'warn' | 'error'>;
   evmCtx: Omit<EvmContext, 'signingSmartWalletKit' | 'fetch'>;
   rpc: CosmosRPCClient;
   spectrumBlockchain: SpectrumBlockchainSdk;
@@ -202,6 +202,7 @@ export type ProcessPortfolioPowers = Pick<
   | 'usdcTokensByChain'
   | 'chainNameToChainIdMap'
 > & {
+  console: Required<Powers>['console'];
   isDryRun?: boolean;
   depositBrand: Brand<'nat'>;
   feeBrand: Brand<'nat'>;
@@ -241,6 +242,7 @@ export const processPortfolioEvents = async (
   memory: PortfoliosMemory,
   {
     isDryRun,
+    console,
     depositBrand,
     feeBrand,
     gasEstimator,
@@ -303,6 +305,7 @@ export const processPortfolioEvents = async (
     flowKey: FlowKey,
     flowDetail: FlowDetail,
   ) => {
+    const logPrefix = `[${portfolioKey}.${flowKey}]`;
     const path = `${portfoliosPathPrefix}.${portfolioKey}`;
     const portfolioId = portfolioIdFromKey(portfolioKey);
     const flowId = flowIdFromKey(flowKey);
@@ -337,11 +340,18 @@ export const processPortfolioEvents = async (
       // tx has been submitted, but we won't know its fate until a future block.
       if (!isDryRun) {
         void getWalletInvocationUpdate(id as any).catch(err => {
-          logger.warn(`⚠️ Failure for ${methodName}`, args, err);
+          console.warn(logPrefix, `⚠️ Failure for ${methodName}`, args, err);
         });
       }
       const details = inspectForStdout({ ...logContext, ...extraDetails });
-      logger.info(methodName, flowDetail, currentBalances, details, tx);
+      console.log(
+        logPrefix,
+        methodName,
+        flowDetail,
+        currentBalances,
+        details,
+        tx,
+      );
     };
 
     const plannerContext = {
@@ -375,7 +385,7 @@ export const processPortfolioEvents = async (
           });
           break;
         default:
-          logger.warn(`⚠️  Unknown flow type ${type}`);
+          console.warn(logPrefix, `⚠️  Unknown flow type ${type}`);
           return;
       }
       (logContext as any).plan = plan;
@@ -452,10 +462,7 @@ export const processPortfolioEvents = async (
           if (await isActiveFlow(portfolioKey, flowKey, readOpts)) return;
           continue;
         }
-        await runWithFlowTrace(
-          portfolioKey, flowKey,
-          () => startFlow(status, portfolioKey, flowKey, flowDetail),
-        );
+        await startFlow(status, portfolioKey, flowKey, flowDetail);
         break;
       }
       memory.snapshots.set(portfolioKey, { fingerprint, repeats: 0 });
@@ -672,7 +679,12 @@ export const startEngine = async (
     feeBrandName: string;
   },
 ) => {
-  const { evmCtx, rpc, signingSmartWalletKit } = powers;
+  const {
+    console = globalThis.console,
+    evmCtx,
+    rpc,
+    signingSmartWalletKit,
+  } = powers;
   const vstoragePathPrefixes = makeVstoragePathPrefixes(contractInstance);
   const { portfoliosPathPrefix, pendingTxPathPrefix } = vstoragePathPrefixes;
   await null;
@@ -744,6 +756,7 @@ export const startEngine = async (
   const portfolioKeyForDepositAddr = new Map() as Map<Bech32Address, string>;
   const processPortfolioPowers: ProcessPortfolioPowers = Object.freeze({
     ...powers,
+    console,
     isDryRun,
     depositBrand: depositAsset.brand as Brand<'nat'>,
     feeBrand: feeAsset.brand as Brand<'nat'>,

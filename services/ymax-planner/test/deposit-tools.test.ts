@@ -713,6 +713,95 @@ test('planRebalanceToAllocations regression - single source, 10x', async t => {
   t.snapshot(plan, 'raw plan');
 });
 
+test('solver regressions - AGO-496', async t => {
+  // PoolKey names have been changed to align with TEST_NETWORK, but the numbers
+  // all match.
+
+  // 2026-04-13T18:50Z
+  const portfolio90Flow9 = await planWithdrawFromAllocations({
+    ...plannerContext,
+    targetAllocation: {
+      Aave_Avalanche: 0n,
+      Aave_Base: 0n,
+      Compound_Arbitrum: 0n,
+      Compound_Base: 0n,
+      Aave_Ethereum: 50n,
+      Aave_Optimism: 0n,
+      Compound_Ethereum: 50n,
+    },
+    currentBalances: {
+      Aave_Ethereum: makeDeposit(108976524n),
+      Compound_Ethereum: makeDeposit(114585044n),
+    },
+    amount: makeDeposit(223560027n),
+  });
+  assertPlanFlow(t, 'portfolio90 flow9', portfolio90Flow9.flow, [
+    makeMovementDesc('Aave_Ethereum', '@Ethereum', 108975753n),
+    makeMovementDesc('Compound_Ethereum', '@Ethereum', 114584274n),
+    makeMovementDesc('@Ethereum', '@agoric', 223560027n),
+    makeMovementDesc('@agoric', '<Cash>', 223560027n),
+  ]);
+
+  // flow2: 2026-04-20T17:02Z
+  // flow3: 2026-04-20T17:03Z
+  // flow4: 2026-04-20T17:03Z
+  // flow8: 2026-04-22T09:33Z
+  const portfolio176FlowX = await planWithdrawFromAllocations({
+    ...plannerContext,
+    targetAllocation: { Aave_Base: 100n },
+    currentBalances: { Aave_Base: makeDeposit(999999n) },
+    amount: makeDeposit(999999n),
+    toChain: 'Avalanche',
+  });
+  assertPlanFlow(t, 'portfolio176 flow{2,3,4,8}', portfolio176FlowX.flow, [
+    makeMovementDesc('Aave_Base', '@Base', 999999n),
+    makeMovementDesc('@Base', '@Avalanche', 999999n),
+    makeMovementDesc('@Avalanche', '-Avalanche', 999999n),
+  ]);
+
+  // 2026-04-21T16:31Z
+  const portfolio81Flow23 = await planDepositToAllocations({
+    ...plannerContext,
+    targetAllocation: {
+      Aave_Ethereum: 50n,
+      Compound_Ethereum: 50n,
+    },
+    currentBalances: {
+      Aave_Ethereum: makeDeposit(8123339354n),
+      Compound_Ethereum: makeDeposit(8123318568n),
+    },
+    amount: makeDeposit(1000000000n),
+    fromChain: 'Ethereum',
+  });
+  assertPlanFlow(t, 'portfolio81 flow23', portfolio81Flow23.flow, [
+    makeMovementDesc('+Ethereum', '@Ethereum', 1000000000n),
+    makeMovementDesc('@Ethereum', 'Aave_Ethereum', 499989607n),
+    makeMovementDesc('@Ethereum', 'Compound_Ethereum', 500010393n),
+  ]);
+
+  // 2026-04-21T23:52Z
+  const portfolio177Flow1 = await planDepositToAllocations({
+    ...plannerContext,
+    targetAllocation: {
+      Aave_Ethereum: 34n,
+      Compound_Ethereum: 33n,
+      Aave_Base: 33n,
+    },
+    currentBalances: {},
+    amount: makeDeposit(scale6(25_000)),
+    fromChain: 'Ethereum',
+  });
+  assertPlanFlow(t, 'portfolio177 flow1', portfolio177Flow1.flow, [
+    makeMovementDesc('+Ethereum', '@Ethereum', scale6(25_000)),
+    makeMovementDesc('@Ethereum', 'Aave_Ethereum', scale6(8500)),
+    makeMovementDesc('@Ethereum', 'Compound_Ethereum', scale6(8250)),
+    makeMovementDesc('@Ethereum', '@agoric', scale6(8250)),
+    makeMovementDesc('@agoric', '@noble', scale6(8250)),
+    makeMovementDesc('@noble', '@Base', scale6(8250)),
+    makeMovementDesc('@Base', 'Aave_Base', scale6(8250)),
+  ]);
+});
+
 test('planRebalanceToAllocations regression - multiple sources', async t => {
   const targetAllocation = {
     Aave_Arbitrum: 10n,
