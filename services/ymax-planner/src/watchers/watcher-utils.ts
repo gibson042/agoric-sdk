@@ -4,6 +4,7 @@ import type { CaipChainId } from '@agoric/orchestration';
 import { depositFactoryCreateAndDepositInputs } from '@aglocal/portfolio-contract/src/utils/evm-orch-factory.ts';
 import { decodeAbiParameters } from 'viem';
 import type { EvmRpc } from '../evm-scanner.ts';
+import { waitForConfirmations } from '../evm-scanner.ts';
 import {
   getConfirmationsRequired,
   getRevertConfirmationsRequired,
@@ -269,8 +270,17 @@ const waitForFinalConfirmations = async (
   confirmations: number,
   provider: EvmRpc,
   log: (...args: unknown[]) => void,
+  setTimeout: typeof globalThis.setTimeout = globalThis.setTimeout,
+  signal?: AbortSignal,
 ): Promise<TransactionReceipt | null> => {
-  const receipt = await provider.waitForTransaction(txHash, confirmations);
+  const receipt = await waitForConfirmations({
+    provider,
+    txHash,
+    confirmations,
+    setTimeout,
+    signal,
+    log,
+  });
   if (!receipt) {
     log(
       `Transaction ${txHash} not confirmed after waiting for ${confirmations} confirmations (possibly reorged out)`,
@@ -302,6 +312,8 @@ export const handleTxRevert = async (
   chainId: `${string}:${string}`,
   provider: EvmRpc,
   log: (...args: unknown[]) => void,
+  setTimeout: typeof globalThis.setTimeout = globalThis.setTimeout,
+  signal?: AbortSignal,
 ): Promise<{ settled: true; txHash: string; success: boolean } | null> => {
   await null;
   // TODO(https://github.com/Agoric/agoric-private/issues/783): also wait for confirmations on success cases — a reorg can flip
@@ -314,6 +326,8 @@ export const handleTxRevert = async (
     confirmations,
     provider,
     log,
+    setTimeout,
+    signal,
   );
   if (!confirmedReceipt) return null;
 
@@ -357,6 +371,8 @@ export const handleOperationFailure = async <T extends { success: boolean }>(
   chainId: CaipChainId,
   provider: EvmRpc,
   log: (...args: unknown[]) => void,
+  setTimeout: typeof globalThis.setTimeout = globalThis.setTimeout,
+  signal?: AbortSignal,
 ): Promise<{ settled: true; txHash: string; success: boolean } | null> => {
   const txHash = eventLog.transactionHash;
 
@@ -366,6 +382,8 @@ export const handleOperationFailure = async <T extends { success: boolean }>(
     confirmations,
     provider,
     log,
+    setTimeout,
+    signal,
   );
   if (!confirmedReceipt) return null;
 

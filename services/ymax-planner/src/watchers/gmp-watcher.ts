@@ -241,6 +241,8 @@ export const watchGmp = ({
           chainId,
           provider,
           log,
+          setTimeout,
+          signal,
         );
         if (result) {
           return finish(result);
@@ -408,6 +410,8 @@ export const lookBackGmp = async ({
           chainId,
           provider,
           log,
+          setTimeout,
+          sharedSignal,
         );
         if (result) {
           deleteTxBlockLowerBound(kvStore, txId, MULTICALL_STATUS_EVENT);

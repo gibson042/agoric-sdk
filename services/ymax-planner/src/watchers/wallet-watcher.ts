@@ -303,6 +303,8 @@ export const watchSmartWalletTx = ({
           chainId,
           provider,
           log,
+          setTimeout,
+          signal,
         );
         if (result) {
           return finish(result);
@@ -490,6 +492,8 @@ export const lookBackSmartWalletTx = async ({
           chainId,
           provider,
           log,
+          setTimeout,
+          sharedSignal,
         );
         if (result) {
           deleteTxBlockLowerBound(kvStore, txId);

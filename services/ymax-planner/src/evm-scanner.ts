@@ -1,5 +1,5 @@
 import { WebSocketProvider, Log, toQuantity, isError } from 'ethers';
-import type { Filter, TransactionResponse } from 'ethers';
+import type { Filter, TransactionReceipt, TransactionResponse } from 'ethers';
 import type { Address as EvmAddress } from 'viem';
 import type { CaipChainId } from '@agoric/orchestration';
 import { getBlockTimeMs } from './support.ts';
@@ -73,10 +73,6 @@ export const makeEvmRpc = (
       () => provider.getTransactionReceipt(txHash),
       setTimeout,
     ),
-  waitForTransaction: (
-    ...args: Parameters<WebSocketProvider['waitForTransaction']>
-  ) =>
-    withRateLimitRetry(() => provider.waitForTransaction(...args), setTimeout),
   send: (...args: Parameters<WebSocketProvider['send']>) =>
     withRateLimitRetry(() => provider.send(...args), setTimeout),
   // Subscription pass-throughs (no retry needed)
@@ -547,4 +543,69 @@ export const waitForBlock = async (provider: EvmRpc, targetBlock: number) => {
     };
     void provider.on('block', listener);
   });
+};
+
+export const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000;
+
+export type WaitForConfirmationsOpts = {
+  provider: EvmRpc;
+  txHash: string;
+  confirmations: number;
+  pollIntervalMs?: number;
+  signal?: AbortSignal;
+  setTimeout?: typeof globalThis.setTimeout;
+  log?: (...args: unknown[]) => void;
+};
+
+const sleepRespectingAbort = (
+  ms: number,
+  setTimeout: typeof globalThis.setTimeout,
+  signal?: AbortSignal,
+): Promise<void> =>
+  new Promise(resolve => {
+    if (signal?.aborted) {
+      resolve();
+      return;
+    }
+    const timeoutId = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timeoutId);
+      resolve();
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+
+export const waitForConfirmations = async ({
+  provider,
+  txHash,
+  confirmations,
+  pollIntervalMs = DEFAULT_CONFIRMATION_POLL_INTERVAL_MS,
+  signal,
+  setTimeout = globalThis.setTimeout,
+  log = () => {},
+}: WaitForConfirmationsOpts): Promise<TransactionReceipt | null> => {
+  await null;
+  let everSeenReceipt = false;
+  while (true) {
+    if (signal?.aborted) return null;
+
+    const receipt = await provider.getTransactionReceipt(txHash);
+    if (receipt) {
+      everSeenReceipt = true;
+      const currentBlock = await provider.getBlockNumber();
+      const observed = currentBlock - receipt.blockNumber + 1;
+      if (observed >= confirmations) return receipt;
+      log(
+        `Waiting for confirmations: txHash=${txHash} observed=${observed}/${confirmations} currentBlock=${currentBlock} receiptBlock=${receipt.blockNumber}`,
+      );
+    } else if (everSeenReceipt) {
+      log(`Transaction ${txHash} receipt disappeared - likely reorged out`);
+      return null;
+    }
+
+    await sleepRespectingAbort(pollIntervalMs, setTimeout, signal);
+  }
 };

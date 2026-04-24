@@ -330,6 +330,8 @@ export const watchOperationResult = ({
             chainId,
             provider,
             log,
+            setTimeout,
+            signal,
           );
 
           if (result) {
@@ -346,6 +348,8 @@ export const watchOperationResult = ({
           chainId,
           provider,
           log,
+          setTimeout,
+          signal,
         );
         if (result) {
           return finish(result);
@@ -495,6 +499,8 @@ export const lookBackOperationResult = async ({
         chainId,
         provider,
         log,
+        setTimeout,
+        sharedSignal,
       );
       deleteTxBlockLowerBound(kvStore, txId);
       deleteTxBlockLowerBound(kvStore, txId, FAILED_TX_SCOPE);
@@ -529,6 +535,8 @@ export const lookBackOperationResult = async ({
           chainId,
           provider,
           log,
+          setTimeout,
+          sharedSignal,
         );
         if (result) {
           deleteTxBlockLowerBound(kvStore, txId);
