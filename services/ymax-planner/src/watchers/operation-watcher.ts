@@ -208,16 +208,14 @@ export const watchOperationResult = ({
 
     const onWsError = (e: any) => {
       const errorMsg = e?.message || String(e);
-      log(
-        `WebSocket error during OperationResult watch for txId=${txId}: ${errorMsg}`,
-      );
+      log(`WebSocket error during OperationResult watch: ${errorMsg}`);
       fail(new Error(`WebSocket connection error: ${errorMsg}`));
     };
 
     const onWsClose = (code?: number, reason?: any) => {
       if (done) return;
       log(
-        `WebSocket closed during OperationResult watch for txId=${txId} (code=${code}, reason=${reason})`,
+        `WebSocket closed during OperationResult watch (code=${code}, reason=${reason})`,
       );
       fail(
         new Error(`WebSocket closed unexpectedly: ${reason} (code=${code})`),
@@ -254,9 +252,7 @@ export const watchOperationResult = ({
           return;
         }
         if (removed) {
-          log(
-            `⚠️  REORG: txId=${txId} txHash=${tx.hash} was removed from chain - ignoring`,
-          );
+          log(`⚠️  REORG: txHash=${tx.hash} was removed from chain - ignoring`);
           return;
         }
 
@@ -280,7 +276,7 @@ export const watchOperationResult = ({
           setTimeout,
         );
         if (!receipt) {
-          log(`Transaction ${txHash} not confirmed after waiting`);
+          log(`txHash=${txHash} not confirmed after waiting`);
           return;
         }
 
@@ -294,7 +290,7 @@ export const watchOperationResult = ({
           const { success } = parseOperationResultLog(matchingLog);
 
           if (success) {
-            log(`✅ SUCCESS: expectedId=${txId} txHash=${txHash}`);
+            log(`✅ SUCCESS: txHash=${txHash}`);
             return finish({ settled: true, txHash, success: true });
           }
 
@@ -307,7 +303,6 @@ export const watchOperationResult = ({
             eventLog: matchingLog,
             logFilter,
             parseEvent: parseOperationResultLog,
-            identifier: `expectedId=${txId}`,
             chainId,
             signal,
             powers: { provider, log, setTimeout },
@@ -321,7 +316,6 @@ export const watchOperationResult = ({
         const watcherResult = await handleTxRevert({
           receipt,
           txHash,
-          identifier: `txId=${txId}`,
           chainId,
           signal,
           powers: { provider, log, setTimeout },
@@ -331,7 +325,7 @@ export const watchOperationResult = ({
         }
       } catch (e) {
         const errorMsg = e?.message || String(e);
-        log(`Error processing WebSocket message for txId=${txId}: ${errorMsg}`);
+        log(`Error processing WebSocket message: ${errorMsg}`);
       }
     };
 
@@ -479,7 +473,6 @@ export const lookBackOperationResult = async ({
         eventLog: matchingEvent,
         logFilter: baseFilter,
         parseEvent: parseOperationResultLog,
-        identifier: `txId=${txId}`,
         chainId,
         signal: sharedSignal,
         powers: { provider, log, setTimeout },
@@ -513,7 +506,6 @@ export const lookBackOperationResult = async ({
         const result = await handleTxRevert({
           receipt,
           txHash: failedTx.hash,
-          identifier: `txId=${txId}`,
           chainId,
           signal: sharedSignal,
           powers: { provider, log, setTimeout },

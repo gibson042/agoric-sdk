@@ -214,17 +214,20 @@ export const watchSmartWalletTx = ({
           : extractDepositFactoryExecuteData(txData);
         if (!executeData) {
           log(
-            `Calldata did not match factory execute ABI for txHash=${txHash} to=${txTo}`,
+            `expectedAddr=${expectedAddr} txHash=${tx.hash} calldata did not match factory execute ABI for to=${txTo}`,
           );
           return;
         }
         const { sourceAddress, expectedWalletAddress } = executeData;
-        if (
-          sourceAddress !== expectedSourceAddress ||
-          getAddress(expectedWalletAddress) !== getAddress(expectedAddr)
-        ) {
+        if (sourceAddress !== expectedSourceAddress) {
           log(
-            `Address mismatch for txHash=${txHash}: sourceAddress=${sourceAddress} expectedWallet=${expectedWalletAddress}`,
+            `expectedAddr=${expectedAddr} txHash=${tx.hash} source address mismatch: expected ${expectedSourceAddress}, got ${sourceAddress}`,
+          );
+          return;
+        }
+        if (getAddress(expectedWalletAddress) !== getAddress(expectedAddr)) {
+          log(
+            `expectedAddr=${expectedAddr} txHash=${tx.hash} wallet address mismatch: got ${expectedWalletAddress} from sourceAddress ${sourceAddress}`,
           );
           return;
         }
@@ -237,7 +240,7 @@ export const watchSmartWalletTx = ({
           setTimeout,
         );
         if (!receipt) {
-          log(`Transaction ${txHash} not confirmed after waiting`);
+          log(`txHash=${txHash} not confirmed after waiting`);
           return;
         }
 

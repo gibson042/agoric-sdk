@@ -253,7 +253,7 @@ test('handlePendingTx ignores non-matching wallet addresses', async t => {
     `[${txId}] handling ${type} tx`,
     `[${txId}] Watching for wallet creation: subscribing to ${factoryAddress}, expecting event from ${factoryAddress}, expectedAddr ${expectedWalletAddr}`,
     `[${txId}] Subscribed with subId=mock-subscription-id to ${factoryAddress}`,
-    `[${txId}] Address mismatch for txHash=0x123abc: sourceAddress=agoric1test expectedWallet=${wrongWalletAddrChecksummed}`,
+    `[${txId}] expectedAddr=0x8cb4b25e77844fc0632aca14f1f9b23bdd654ebf txHash=0x123abc wallet address mismatch: got ${wrongWalletAddrChecksummed} from sourceAddress agoric1test`,
     `[${txId}] ✅ SUCCESS: expectedAddr=${expectedWalletAddr} txHash=${correctTxHash} block=18500000`,
     `[${txId}] MAKE_ACCOUNT tx resolved`,
   ]);
@@ -369,13 +369,13 @@ test('find a failed tx in MAKE_ACCOUNT lookback mode via trace_filter', async t 
     },
   );
 
-  t.true(logs.some(l => l.includes(`handling ${TxType.MAKE_ACCOUNT}`)));
-  t.true(
-    logs.some(l =>
-      l.includes(
-        `[${txId}] ❌ REVERTED (240 confirmations): expectedAddr=${expectedWalletAddr} txHash=${failedTxHash} block=${latestBlock} - transaction failed`,
-      ),
-    ),
+  const logsExcerpt = logs.filter(
+    l =>
+      l.includes(TxType.MAKE_ACCOUNT) || l.match(/\b(?:handling|REVERTED)\b/),
   );
-  t.true(logs.some(l => l.includes('MAKE_ACCOUNT tx resolved')));
+  t.deepEqual(logsExcerpt, [
+    `[${txId}] handling ${TxType.MAKE_ACCOUNT} tx`,
+    `[${txId}] ❌ REVERTED (transaction failed, 240 confirmations): expectedAddr=${expectedWalletAddr} txHash=${failedTxHash} block=${latestBlock}`,
+    `[${txId}] ${TxType.MAKE_ACCOUNT} tx resolved`,
+  ]);
 });

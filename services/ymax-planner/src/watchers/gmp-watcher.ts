@@ -61,9 +61,7 @@ export const watchGmp = ({
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return resolve({ settled: false });
 
-    log(
-      `Watching transaction status for txId: ${txId} at contract: ${contractAddress}`,
-    );
+    log(`Watching transaction status for contract ${contractAddress}`);
 
     const ws = provider.websocket as WebSocket;
     let done = false;
@@ -97,15 +95,13 @@ export const watchGmp = ({
 
     const onWsError = (e: any) => {
       const errorMsg = e?.message || String(e);
-      log(`WebSocket error during GMP watch for txId=${txId}: ${errorMsg}`);
+      log(`WebSocket error during GMP watch: ${errorMsg}`);
       fail(new Error(`WebSocket connection error: ${errorMsg}`));
     };
 
     const onWsClose = (code?: number, reason?: any) => {
       if (done) return;
-      log(
-        `WebSocket closed during GMP watch for txId=${txId} (code=${code}, reason=${reason})`,
-      );
+      log(`WebSocket closed during GMP watch (code=${code}, reason=${reason})`);
       fail(
         new Error(`WebSocket closed unexpectedly: ${reason} (code=${code})`),
       );
@@ -141,9 +137,7 @@ export const watchGmp = ({
           return;
         }
         if (removed) {
-          log(
-            `⚠️  REORG: txId=${txId} txHash=${tx.hash} was removed from chain - ignoring`,
-          );
+          log(`⚠️  REORG: txHash=${tx.hash} was removed from chain - ignoring`);
           return;
         }
 
@@ -155,19 +149,19 @@ export const watchGmp = ({
 
         const executeData = extractGmpExecuteData(txData);
         if (!executeData) {
-          log(`Calldata did not match Axelar execute ABI for txHash=${txHash}`);
+          log(`txHash=${txHash} calldata did not match Axelar execute ABI`);
           return;
         }
         const { txId: gmpTxId, sourceAddress: gmpSourceAddress } = executeData;
         if (gmpTxId !== txId) {
           log(
-            `Matched different txId: expected=${txId} got=${gmpTxId} txHash=${txHash}`,
+            `txHash=${txHash} txId mismatch: expected ${txId}, got ${gmpTxId}`,
           );
           return;
         }
         if (gmpSourceAddress !== expectedSourceAddress) {
           log(
-            `⚠️  IGNORED: txId=${txId} txHash=${txHash} - sourceAddress mismatch (expected ${expectedSourceAddress}, got ${gmpSourceAddress})`,
+            `⚠️  IGNORED: txHash=${txHash} sourceAddress mismatch: expected ${expectedSourceAddress}, got ${gmpSourceAddress}`,
           );
           return;
         }
@@ -180,7 +174,7 @@ export const watchGmp = ({
           setTimeout,
         );
         if (!receipt) {
-          log(`Transaction ${txHash} not confirmed after waiting`);
+          log(`txHash=${txHash} not confirmed after waiting`);
           return;
         }
 
@@ -193,9 +187,7 @@ export const watchGmp = ({
           // Success case: return immediately without waiting for any
           // confirmations (subsequent blocks), which would hurt performance.
           // Even if a reorg occurs, we expect the transaction to succeed again.
-          log(
-            `✅ SUCCESS: txId=${txId} txHash=${txHash} block=${receipt.blockNumber}`,
-          );
+          log(`✅ SUCCESS: txHash=${txHash} block=${receipt.blockNumber}`);
           return finish({ settled: true, txHash, success: true });
         }
 
@@ -204,7 +196,6 @@ export const watchGmp = ({
         const watcherResult = await handleTxRevert({
           receipt,
           txHash,
-          identifier: `txId=${txId}`,
           chainId,
           signal,
           powers: { provider, log, setTimeout },
@@ -214,9 +205,7 @@ export const watchGmp = ({
         }
       } catch (e) {
         const errorMsg = e?.message || String(e);
-        log(
-          `Error processing WebSocket message for txId=${txId}: ${errorMsg}`,
-        );
+        log(`Error processing WebSocket message: ${errorMsg}`);
       }
     };
 
@@ -244,7 +233,7 @@ export const watchGmp = ({
             log(`Failed to unsubscribe${detail}:`, e);
           });
       });
-      log(`Subscribed with subId=${subId} for contract=${contractAddress}`);
+      log(`Subscribed with subId=${subId} for contract ${contractAddress}`);
     };
 
     if (ws.readyState === 1) {
@@ -257,7 +246,7 @@ export const watchGmp = ({
     const timeoutId = setTimeout(() => {
       if (done) return;
       log(
-        `[${PendingTxCode.GMP_TX_NOT_FOUND}] ✗ No transaction status found for txId ${txId} within ${
+        `[${PendingTxCode.GMP_TX_NOT_FOUND}] ✗ No transaction status found within ${
           timeoutMs / 60000
         } minutes`,
       );
@@ -379,7 +368,6 @@ export const lookBackGmp = async ({
         const result = await handleTxRevert({
           receipt,
           txHash: failedTx.hash,
-          identifier: `txId=${txId}`,
           chainId,
           signal: sharedSignal,
           powers: { provider, log, setTimeout },
