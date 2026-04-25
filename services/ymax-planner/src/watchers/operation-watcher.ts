@@ -169,10 +169,7 @@ export const watchOperationResult = ({
     retryOptions?: RetryOptions;
   }): Promise<WatcherResult> => {
   return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      resolve({ settled: false });
-      return;
-    }
+    if (signal?.aborted) return resolve({ settled: false });
 
     // The txId must be padded to match sourceAddress length
     const paddedTxId = padTxId(txId, sourceAddress);
@@ -182,19 +179,18 @@ export const watchOperationResult = ({
       `Watching for OperationResult on router ${routerAddress} with id: ${txId}`,
     );
 
+    const ws = provider.websocket as WebSocket;
     let done = false;
     let timeoutId: NodeJS.Timeout;
     let subId: string | null = null;
     const cleanups: (() => void)[] = [];
 
-    const ws = provider.websocket as WebSocket;
-
-    const finish = (result: WatcherResult) => {
+    const finish = (res: WatcherResult) => {
       if (done) return;
       done = true;
 
       if (timeoutId) clearTimeout(timeoutId);
-      resolve(result);
+      resolve(res);
 
       if (subId) {
         void provider
@@ -236,14 +232,13 @@ export const watchOperationResult = ({
     };
 
     const onWsClose = (code?: number, reason?: any) => {
-      if (!done) {
-        log(
-          `WebSocket closed during OperationResult watch for txId=${txId} (code=${code}, reason=${reason})`,
-        );
-        fail(
-          new Error(`WebSocket closed unexpectedly: ${reason} (code=${code})`),
-        );
-      }
+      if (done) return;
+      log(
+        `WebSocket closed during OperationResult watch for txId=${txId} (code=${code}, reason=${reason})`,
+      );
+      fail(
+        new Error(`WebSocket closed unexpectedly: ${reason} (code=${code})`),
+      );
     };
 
     ws.on('error', onWsError);
@@ -259,36 +254,40 @@ export const watchOperationResult = ({
     }
 
     const messageHandler = async (data: any) => {
-      await null;
       if (done) return;
 
+      await null;
       try {
         const msg = tryJsonParse(
           data.toString(),
           'alchemy_minedTransactions subscription response',
         ) as AlchemySubscriptionMessage;
-
         if (msg.method !== 'eth_subscription') return;
 
-        const tx = msg.params?.result?.transaction;
-        const removed = msg.params?.result?.removed;
-        if (!tx) return;
-
-        if (removed === true) {
+        const { result } = msg.params ?? {};
+        const { transaction: tx, removed } = result ?? {};
+        if (!tx) {
+          log(`Subscription message missing transaction data`, result);
+          return;
+        }
+        if (removed) {
           log(
             `⚠️  REORG: txId=${txId} txHash=${tx.hash} was removed from chain - ignoring`,
           );
           return;
         }
 
-        const txHash = tx.hash;
-        const txData = tx.input;
-        if (!txHash || !txData) return;
+        const { hash: txHash, input: txData } = tx;
+        if (!txHash || !txData) {
+          log(`Subscription message missing txHash or input data`);
+          return;
+        }
 
         if (
           !matchesTxPayload(txData, paddedTxId, payloadHash, log, txHash, txId)
-        )
+        ) {
           return;
+        }
 
         const receipt = await fetchReceiptWithRetry(
           provider,
@@ -303,14 +302,13 @@ export const watchOperationResult = ({
         }
 
         // Check for OperationResult event in receipt
-        const operationResultLog = receipt.logs.find(
-          (l: any) =>
+        const matchingLog = receipt.logs.find(
+          l =>
             l.topics?.[0] === OPERATION_RESULT_SIGNATURE &&
             l.topics?.[1] === expectedIdHash,
         );
-
-        if (operationResultLog) {
-          const { success } = parseOperationResultLog(operationResultLog);
+        if (matchingLog) {
+          const { success } = parseOperationResultLog(matchingLog);
 
           if (success) {
             log(`✅ SUCCESS: expectedId=${txId} txHash=${txHash}`);
@@ -322,8 +320,8 @@ export const watchOperationResult = ({
             address: routerAddress,
             topics: [OPERATION_RESULT_SIGNATURE, expectedIdHash],
           };
-          const result = await handleOperationFailure({
-            eventLog: operationResultLog,
+          const watcherResult = await handleOperationFailure({
+            eventLog: matchingLog,
             logFilter,
             parseEvent: parseOperationResultLog,
             identifier: `expectedId=${txId}`,
@@ -332,14 +330,12 @@ export const watchOperationResult = ({
             powers: { provider, log, setTimeout },
           });
 
-          if (result) {
-            return finish(result);
-          }
+          if (watcherResult) finish(watcherResult);
           return;
         }
 
         // No OperationResult event — check for transaction revert
-        const result = await handleTxRevert({
+        const watcherResult = await handleTxRevert({
           receipt,
           txHash,
           identifier: `txId=${txId}`,
@@ -347,20 +343,20 @@ export const watchOperationResult = ({
           signal,
           powers: { provider, log, setTimeout },
         });
-        if (result) {
-          return finish(result);
+        if (watcherResult) {
+          return finish(watcherResult);
         }
       } catch (e) {
-        log(
-          `Error processing WebSocket message for txId=${txId}:`,
-          e instanceof Error ? e.message : String(e),
-        );
+        const errorMsg = e?.message || String(e);
+        log(`Error processing WebSocket message for txId=${txId}: ${errorMsg}`);
       }
     };
 
     const subscribe = async () => {
+      // Verify liveness.
       await provider.getNetwork();
 
+      // Attach message handler before subscribing to avoid race condition
       ws.on('message', messageHandler);
       cleanups.unshift(() => ws.off('message', messageHandler));
 
@@ -381,12 +377,12 @@ export const watchOperationResult = ({
       ws.once('open', () => subscribe().catch(fail));
     }
 
+    // Intentional: does not resolve/reject; only logs on timeout
     timeoutId = setTimeout(() => {
-      if (!done) {
-        log(
-          `[${PendingTxCode.ROUTED_GMP_TX_NOT_FOUND}] ✗ No matching OperationResult found within ${timeoutMs / 60000} minutes`,
-        );
-      }
+      if (done) return;
+      log(
+        `[${PendingTxCode.ROUTED_GMP_TX_NOT_FOUND}] ✗ No matching OperationResult found within ${timeoutMs / 60000} minutes`,
+      );
     }, timeoutMs);
   });
 };

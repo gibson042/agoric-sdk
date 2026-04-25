@@ -65,12 +65,11 @@ export const watchGmp = ({
       `Watching transaction status for txId: ${txId} at contract: ${contractAddress}`,
     );
 
+    const ws = provider.websocket as WebSocket;
     let done = false;
     let timeoutId: NodeJS.Timeout | undefined;
     let subId: string | null = null;
     const cleanups: (() => void)[] = [];
-
-    const ws = provider.websocket as WebSocket;
 
     // Precompute expected topic for txId
     const expectedIdTopic = ethers.keccak256(ethers.toUtf8Bytes(txId));
@@ -120,14 +119,13 @@ export const watchGmp = ({
     };
 
     const onWsClose = (code?: number, reason?: any) => {
-      if (!done) {
-        log(
-          `WebSocket closed during GMP watch for txId=${txId} (code=${code}, reason=${reason})`,
-        );
-        fail(
-          new Error(`WebSocket closed unexpectedly: ${reason} (code=${code})`),
-        );
-      }
+      if (done) return;
+      log(
+        `WebSocket closed during GMP watch for txId=${txId} (code=${code}, reason=${reason})`,
+      );
+      fail(
+        new Error(`WebSocket closed unexpectedly: ${reason} (code=${code})`),
+      );
     };
 
     ws.on('error', onWsError);
@@ -139,43 +137,34 @@ export const watchGmp = ({
     if (signal) {
       const onAbort = () => finish({ settled: false });
       signal.addEventListener('abort', onAbort);
-      cleanups.unshift(() => {
-        signal.removeEventListener('abort', onAbort);
-      });
+      cleanups.unshift(() => signal.removeEventListener('abort', onAbort));
     }
 
     const messageHandler = async (data: any) => {
-      await null;
       if (done) return;
 
+      await null;
       try {
         const msg = tryJsonParse(
           data.toString(),
           'alchemy_minedTransactions subscription response',
         ) as AlchemySubscriptionMessage;
-
         if (msg.method !== 'eth_subscription') return;
 
-        const tx = msg.params?.result?.transaction;
-        const removed = msg.params?.result?.removed;
+        const { result } = msg.params ?? {};
+        const { transaction: tx, removed } = result ?? {};
         if (!tx) {
-          log(
-            `Subscription message missing transaction data`,
-            msg.params?.result,
-          );
+          log(`Subscription message missing transaction data`, result);
           return;
         }
-
-        // Ignore transactions that have been removed from canonical chain (reorged)
-        if (removed === true) {
+        if (removed) {
           log(
             `⚠️  REORG: txId=${txId} txHash=${tx.hash} was removed from chain - ignoring`,
           );
           return;
         }
 
-        const txHash = tx.hash;
-        const txData = tx.input;
+        const { hash: txHash, input: txData } = tx;
         if (!txHash || !txData) {
           log(`Subscription message missing txHash or input data`);
           return;
@@ -186,16 +175,16 @@ export const watchGmp = ({
           log(`Calldata did not match Axelar execute ABI for txHash=${txHash}`);
           return;
         }
-        if (executeData.txId !== txId) {
+        const { txId: gmpTxId, sourceAddress: gmpSourceAddress } = executeData;
+        if (gmpTxId !== txId) {
           log(
-            `Matched different txId: expected=${txId} got=${executeData.txId} txHash=${txHash}`,
+            `Matched different txId: expected=${txId} got=${gmpTxId} txHash=${txHash}`,
           );
           return;
         }
-
-        if (executeData.sourceAddress !== expectedSourceAddress) {
+        if (gmpSourceAddress !== expectedSourceAddress) {
           log(
-            `⚠️  IGNORED: txId=${txId} txHash=${txHash} - sourceAddress mismatch (expected ${expectedSourceAddress}, got ${executeData.sourceAddress})`,
+            `⚠️  IGNORED: txId=${txId} txHash=${txHash} - sourceAddress mismatch (expected ${expectedSourceAddress}, got ${gmpSourceAddress})`,
           );
           return;
         }
@@ -217,24 +206,19 @@ export const watchGmp = ({
             l.topics?.[0] === MULTICALL_STATUS_SIGNATURE &&
             l.topics?.[1] === expectedIdTopic,
         );
-
         if (receipt.status === 1 && matchingLog) {
-          // Success case: return immediately without waiting for any confirmations (0 blocks)
-          // Rationale: Even if a reorg occurs, the transaction will likely succeed again
-          // Waiting for confirmations in success cases would hurt performance unnecessarily
+          // Success case: return immediately without waiting for any
+          // confirmations (subsequent blocks), which would hurt performance.
+          // Even if a reorg occurs, we expect the transaction to succeed again.
           log(
             `✅ SUCCESS: txId=${txId} txHash=${txHash} block=${receipt.blockNumber}`,
           );
           return finish({ settled: true, txHash, success: true });
         }
 
-        /**
-         * Transaction reverted check: Since we've already validated that the sourceAddress
-         * matches our expected LCA address, this is a legitimate execution attempt
-         * from our own wallet. Spurious executions from unauthorized parties are already
-         * filtered out by the sourceAddress check above.
-         */
-        const result = await handleTxRevert({
+        // Failure case: wait for [de facto] finality in case a reorg flips it
+        // to success.
+        const watcherResult = await handleTxRevert({
           receipt,
           txHash,
           identifier: `txId=${txId}`,
@@ -242,13 +226,13 @@ export const watchGmp = ({
           signal,
           powers: { provider, log, setTimeout },
         });
-        if (result) {
-          return finish(result);
+        if (watcherResult) {
+          return finish(watcherResult);
         }
       } catch (e) {
+        const errorMsg = e?.message || String(e);
         log(
-          `Error processing WebSocket message for txId=${txId}:`,
-          e instanceof Error ? e.message : String(e),
+          `Error processing WebSocket message for txId=${txId}: ${errorMsg}`,
         );
       }
     };
@@ -280,13 +264,12 @@ export const watchGmp = ({
 
     // Intentional: does not resolve/reject; only logs on timeout
     timeoutId = setTimeout(() => {
-      if (!done) {
-        log(
-          `[${PendingTxCode.GMP_TX_NOT_FOUND}] ✗ No transaction status found for txId ${txId} within ${
-            timeoutMs / 60000
-          } minutes`,
-        );
-      }
+      if (done) return;
+      log(
+        `[${PendingTxCode.GMP_TX_NOT_FOUND}] ✗ No transaction status found for txId ${txId} within ${
+          timeoutMs / 60000
+        } minutes`,
+      );
     }, timeoutMs);
   });
 };
