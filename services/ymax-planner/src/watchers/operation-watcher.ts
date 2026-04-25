@@ -181,22 +181,14 @@ export const watchOperationResult = ({
 
     const ws = provider.websocket as WebSocket;
     let done = false;
-    let timeoutId: NodeJS.Timeout;
     let subId: string | null = null;
-    const cleanups: (() => void)[] = [];
+    const cleanups: ((err?: unknown) => void)[] = [];
 
     const finish = (res: WatcherResult) => {
       if (done) return;
       done = true;
 
-      if (timeoutId) clearTimeout(timeoutId);
       resolve(res);
-
-      if (subId) {
-        void provider
-          .send('eth_unsubscribe', [subId])
-          .catch(e => log('Failed to unsubscribe:', e));
-      }
       for (const cleanup of cleanups) cleanup();
     };
 
@@ -210,16 +202,7 @@ export const watchOperationResult = ({
       if (done) return;
       done = true;
 
-      if (timeoutId) clearTimeout(timeoutId);
-
       reject(err);
-      if (subId) {
-        void provider
-          .send('eth_unsubscribe', [subId])
-          .catch(error =>
-            log('Failed to unsubscribe during error cleanup:', error),
-          );
-      }
       for (const cleanup of cleanups) cleanup();
     };
 
@@ -368,6 +351,14 @@ export const watchOperationResult = ({
           hashesOnly: false,
         },
       ]);
+      cleanups.unshift(forFail => {
+        void Promise.resolve(undefined)
+          .then(() => provider.send('eth_unsubscribe', [subId]))
+          .catch(e => {
+            const detail = forFail ? ' during error cleanup' : '';
+            log(`Failed to unsubscribe${detail}:`, e);
+          });
+      });
       log(`Subscribed with subId=${subId} for router=${routerAddress}`);
     };
 
@@ -378,12 +369,13 @@ export const watchOperationResult = ({
     }
 
     // Intentional: does not resolve/reject; only logs on timeout
-    timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       if (done) return;
       log(
         `[${PendingTxCode.ROUTED_GMP_TX_NOT_FOUND}] ✗ No matching OperationResult found within ${timeoutMs / 60000} minutes`,
       );
     }, timeoutMs);
+    cleanups.unshift(() => clearTimeout(timeoutId));
   });
 };
 

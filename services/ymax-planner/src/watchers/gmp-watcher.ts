@@ -67,9 +67,8 @@ export const watchGmp = ({
 
     const ws = provider.websocket as WebSocket;
     let done = false;
-    let timeoutId: NodeJS.Timeout | undefined;
     let subId: string | null = null;
-    const cleanups: (() => void)[] = [];
+    const cleanups: ((err?: unknown) => void)[] = [];
 
     // Precompute expected topic for txId
     const expectedIdTopic = ethers.keccak256(ethers.toUtf8Bytes(txId));
@@ -78,14 +77,7 @@ export const watchGmp = ({
       if (done) return;
       done = true;
 
-      if (timeoutId) clearTimeout(timeoutId);
-
       resolve(res);
-      if (subId) {
-        void provider
-          .send('eth_unsubscribe', [subId])
-          .catch(e => log('Failed to unsubscribe:', e));
-      }
       for (const cleanup of cleanups) cleanup();
     };
 
@@ -99,16 +91,7 @@ export const watchGmp = ({
       if (done) return;
       done = true;
 
-      if (timeoutId) clearTimeout(timeoutId);
-
       reject(err);
-      if (subId) {
-        void provider
-          .send('eth_unsubscribe', [subId])
-          .catch(error =>
-            log('Failed to unsubscribe during error cleanup:', error),
-          );
-      }
       for (const cleanup of cleanups) cleanup();
     };
 
@@ -253,6 +236,14 @@ export const watchGmp = ({
           hashesOnly: false,
         },
       ]);
+      cleanups.unshift(forFail => {
+        void Promise.resolve(undefined)
+          .then(() => provider.send('eth_unsubscribe', [subId]))
+          .catch(e => {
+            const detail = forFail ? ' during error cleanup' : '';
+            log(`Failed to unsubscribe${detail}:`, e);
+          });
+      });
       log(`Subscribed with subId=${subId} for contract=${contractAddress}`);
     };
 
@@ -263,7 +254,7 @@ export const watchGmp = ({
     }
 
     // Intentional: does not resolve/reject; only logs on timeout
-    timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       if (done) return;
       log(
         `[${PendingTxCode.GMP_TX_NOT_FOUND}] ✗ No transaction status found for txId ${txId} within ${
@@ -271,6 +262,7 @@ export const watchGmp = ({
         } minutes`,
       );
     }, timeoutMs);
+    cleanups.unshift(() => clearTimeout(timeoutId));
   });
 };
 
