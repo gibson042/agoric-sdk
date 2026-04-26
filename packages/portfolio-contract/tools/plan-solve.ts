@@ -359,7 +359,7 @@ const refineModel = (
 
 /**
  * Represent a JSON-serializable object as a spacey single-line literal with
- * identifier-compatible property names unquoted.
+ * identifier-compatible property names unquoted and number digits grouped.
  */
 const prettyJsonable = (obj: unknown): string => {
   const jsonText = JSON.stringify(obj, null, 1);
@@ -369,8 +369,24 @@ const prettyJsonable = (obj: unknown): string => {
     strings.push(s);
     return '#';
   });
-  // Condense the [now guaranteed-insignificant] whitespace.
-  const singleLine = safe.replace(/\s+/g, ' ');
+  // Condense the [now guaranteed-insignificant] whitespace and insert
+  // underscores to separate digits into groups of 3.
+  const singleLine = safe
+    .replace(/\s+/g, ' ')
+    .replace(/([0-9]+)([.][0-9]+)?/g, (_x, w, f = '') => {
+      const wCount = w.length;
+      const wGroups = w.slice(wCount % 3).match(/[0-9]{3}/g) || [];
+      if (wCount % 3) wGroups.unshift(w.slice(0, wCount % 3));
+
+      const fGroups = f.match(/[0-9]{1,3}/g) || [];
+      const lastFGroup = fGroups.pop();
+      if (lastFGroup) {
+        fGroups.push(lastFGroup.padEnd(3, '0'));
+        fGroups[0] = `.${fGroups[0]}`;
+      }
+
+      return `${wGroups.join('_')}${fGroups.join('_')}`;
+    });
   // Restore the strings, stripping quotes from property names as possible.
   const pretty = singleLine.replaceAll('#', () => {
     const s = strings.shift() as string;
