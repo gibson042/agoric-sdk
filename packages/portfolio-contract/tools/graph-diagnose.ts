@@ -6,7 +6,12 @@ import { Fail, q } from '@endo/errors';
 import type { NatAmount } from '@agoric/ertp/src/types.js';
 import { provideLazyMap, typedEntries } from '@agoric/internal/src/js-utils.js';
 import { tryNow } from '@agoric/internal/src/ses-utils.js';
-import { isInterChainAccountRef } from '@agoric/portfolio-api/src/type-guards.js';
+import {
+  isDepositFromChainRef,
+  isInstrumentId,
+  isInterChainAccountRef,
+  isWithdrawToChainRef,
+} from '@agoric/portfolio-api/src/type-guards.js';
 import type {
   AssetPlaceRef,
   InterChainAccountRef,
@@ -155,8 +160,16 @@ export const preflightValidateNetworkPlan = (
     const tgt = target[k]?.value ?? 0n;
     if (cur === tgt) continue;
 
-    const placeInfo = PoolPlaces[k as PoolKey];
-    placeInfo || declared.has(k) || Fail`Unsupported position key: ${q(k)}`;
+    if (isInstrumentId(k)) {
+      const placeInfo = PoolPlaces[k as PoolKey];
+      placeInfo || declared.has(k) || Fail`Unsupported position key: ${q(k)}`;
+    } else {
+      [
+        isInterChainAccountRef,
+        isDepositFromChainRef,
+        isWithdrawToChainRef,
+      ].some(p => p(k)) || Fail`Unsupported key: ${q(k)}`;
+    }
     const chain = tryNow(
       () => chainOf(k),
       () => undefined,
