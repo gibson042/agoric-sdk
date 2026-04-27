@@ -551,11 +551,9 @@ export type WaitForConfirmationsOpts = {
   provider: EvmRpc;
   txHash: string;
   minConfirmations: number;
-  /**
-   * If set, the wait between polls is extended to the estimated time until the
-   * remaining confirmations have accrued, avoiding pointless RPC round-trips.
-   */
-  meanBlockTimeMs?: number;
+  /** For avoiding intermediate RPC requests while awaiting confirmations. */
+  meanBlockTimeMs: number;
+  /** The minimum amount of time to wait between RPC requests. */
   pollIntervalMs?: number;
   signal?: AbortSignal;
   setTimeout: typeof globalThis.setTimeout;
@@ -585,17 +583,15 @@ export const waitForConfirmations = async ({
       everSeenReceipt = true;
       const currentBlock = await provider.getBlockNumber();
       const confirmationCount = currentBlock - receipt.blockNumber + 1;
-      if (confirmationCount >= minConfirmations) return receipt;
+      const confirmationsStillNeeded = minConfirmations - confirmationCount;
+      if (confirmationsStillNeeded <= 0) return receipt;
       log(
         `Waiting for more confirmations: txHash=${txHash} observed=${confirmationCount} of ${minConfirmations} currentBlock=${currentBlock} receiptBlock=${receipt.blockNumber}`,
       );
-      if (meanBlockTimeMs) {
-        const confirmationsStillNeeded = minConfirmations - confirmationCount;
-        sleepMs = Math.max(
-          pollIntervalMs,
-          (confirmationsStillNeeded + 1) * meanBlockTimeMs,
-        );
-      }
+      sleepMs = Math.max(
+        sleepMs,
+        (confirmationsStillNeeded + 1) * meanBlockTimeMs,
+      );
     } else if (everSeenReceipt) {
       log(`Transaction ${txHash} receipt disappeared - likely lost in a reorg`);
       return null;
