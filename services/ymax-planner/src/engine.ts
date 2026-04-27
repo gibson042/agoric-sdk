@@ -172,7 +172,8 @@ export const makeVstorageEvent = (
 
 export type Powers = {
   console?: Pick<Console, 'debug' | 'info' | 'log' | 'warn' | 'error'>;
-  evmCtx: Omit<EvmContext, 'signingSmartWalletKit' | 'fetch'>;
+  // TODO(AGO-512): Derive EvmContext from Powers rather than embedding it.
+  evmCtx: Omit<EvmContext, 'signingSmartWalletKit' | 'makeNonce' | 'fetch'>;
   rpc: CosmosRPCClient;
   setTimeout: typeof globalThis.setTimeout;
   spectrumBlockchain: SpectrumBlockchainSdk;
@@ -180,6 +181,8 @@ export type Powers = {
   evmTokenAddresses: Partial<Record<InstrumentId, EvmAddress>>;
   network: NetworkSpec;
   signingSmartWalletKit: SigningSmartWalletKit;
+  /** Used to generate unique suffixes in agoric Smart Wallet OfferSpec ids. */
+  makeNonce: () => string;
   walletStore: ReturnType<typeof reflectWalletStore>;
   getWalletInvocationUpdate: (
     messageId: string | number,
@@ -687,6 +690,7 @@ export const startEngine = async (
     evmCtx,
     rpc,
     signingSmartWalletKit,
+    makeNonce,
   } = powers;
   const vstoragePathPrefixes = makeVstoragePathPrefixes(contractInstance);
   const { portfoliosPathPrefix, pendingTxPathPrefix } = vstoragePathPrefixes;
@@ -798,6 +802,7 @@ export const startEngine = async (
     error: console.error.bind(console),
     marshaller,
     signingSmartWalletKit,
+    makeNonce,
     vstoragePathPrefixes,
     pendingTxAbortControllers,
   });

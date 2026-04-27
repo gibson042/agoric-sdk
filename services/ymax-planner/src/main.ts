@@ -51,8 +51,8 @@ import { makeGasEstimator } from './gas-estimation.ts';
 import { makeSQLiteKeyValueStore } from './kv-store.ts';
 import { YdsNotifier } from './yds-notifier.ts';
 import { getPoolTokenAddresses } from './evm-utils.ts';
+import { makeNowISO } from './utils.ts';
 
-const { Date } = globalThis;
 const { fromEntries, entries } = Object;
 
 const assertChainId = async (
@@ -84,7 +84,7 @@ export type SimplePowers = {
 };
 
 /** `makeNonce` defaults to the wall clock for debugging sent transactions. */
-const defaultMakeNonce = () => new Date().toISOString();
+const defaultMakeNonce = makeNowISO(Date.now);
 
 export const main = async (
   cliArgs: string[],
@@ -306,6 +306,7 @@ export const main = async (
     spectrumBlockchain,
     network: PROD_NETWORK,
     signingSmartWalletKit,
+    makeNonce,
     walletStore,
     getWalletInvocationUpdate: (messageId, opts) => {
       const { getLastUpdate } = signingSmartWalletKit.query;

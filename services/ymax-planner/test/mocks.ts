@@ -29,6 +29,7 @@ import type { YdsNotifier } from '../src/yds-notifier.ts';
 import type { Sdk as SpectrumBlockchainSdk } from '../src/graphql/api-spectrum-blockchain/__generated/sdk.ts';
 import { ERC20_BALANCE_ABI } from '../src/evm-utils.ts';
 import type { makeEvmRpc, EvmRpc } from '../src/evm-scanner.ts';
+import { makeNowISO } from '../src/utils.ts';
 
 const PENDING_TX_PATH_PREFIX = 'published.ymax1';
 
@@ -50,6 +51,8 @@ type GMPTxStatus =
   | 'executable'
   | 'executable_without_gas_paid'
   | 'insufficient_fee';
+
+const makeNonce = makeNowISO(Date.now);
 
 const makeAbortController = prepareAbortController({
   setTimeout,
@@ -102,6 +105,7 @@ export const createMockEnginePowers = (): EnginePowers => ({
   evmTokenAddresses: {},
   network: TEST_NETWORK,
   signingSmartWalletKit: {} as any,
+  makeNonce: () => '',
   walletStore: {} as any,
   getWalletInvocationUpdate: async () => undefined,
   now: () => NaN,
@@ -475,6 +479,7 @@ export const createMockPendingTxOpts = (
     now: globalThis.performance.now.bind(globalThis.performance),
     marshaller: boardSlottingMarshaller(),
     signingSmartWalletKit: createMockSigningSmartWalletKit(),
+    makeNonce,
     ydsNotifier: {
       notifySettlement: async () => true,
     } as unknown as YdsNotifier,

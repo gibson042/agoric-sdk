@@ -33,6 +33,7 @@ import type { SimplePowers } from '../src/main.ts';
 import { makeSQLiteKeyValueStore } from '../src/kv-store.ts';
 import type { HandlePendingTxOpts } from '../src/pending-tx-manager.ts';
 import { handlePendingTx } from '../src/pending-tx-manager.ts';
+import { makeNowISO } from '../src/utils.ts';
 import {
   parseStreamCell,
   parseStreamCellValue,
@@ -55,6 +56,8 @@ export const processTx = async (
     now = globalThis.performance.now.bind(globalThis.performance),
     setTimeout = globalThis.setTimeout,
     connectWithSigner = SigningStargateClient.connectWithSigner,
+    // Default to the wall clock for debugging sent transactions.
+    makeNonce = makeNowISO(Date.now),
     AbortController = globalThis.AbortController,
     AbortSignal = globalThis.AbortSignal,
     WebSocket = ws.WebSocket,
@@ -190,6 +193,7 @@ export const processTx = async (
         error: (...args) => console.error('[ERROR]', ...args),
         marshaller,
         signingSmartWalletKit,
+        makeNonce,
         vstoragePathPrefixes,
         axelarApiUrl: config.axelar.apiUrl,
         pendingTxAbortControllers: new Map(),
