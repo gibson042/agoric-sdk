@@ -354,6 +354,22 @@ export const handleTxRevert = async ({
   }
 };
 
+export type HandleOperationFailureOpts<T extends { success: boolean }> = {
+  eventLog: Log;
+  /** Filter to re-fetch the event after confirmations. */
+  logFilter: Filter;
+  parseEvent: (log: Log) => T;
+  /** A string identifier for logging. */
+  identifier: string;
+  chainId: CaipChainId;
+  signal?: AbortSignal;
+  powers: {
+    provider: EvmRpc;
+    log: (...args: unknown[]) => void;
+    setTimeout?: typeof globalThis.setTimeout;
+  };
+};
+
 /**
  * Handle event-level failure with finality protection.
  *
@@ -361,27 +377,20 @@ export const handleTxRevert = async ({
  * business logic failed (e.g., OperationResult event with success=false).
  * We wait for confirmations and re-verify the event to ensure the failure
  * is permanent before reporting it.
- *
- * @param eventLog - The event log containing the failure
- * @param filter - Filter to re-fetch the event after confirmations
- * @param parseEvent - Function to parse the event and return its success status
- * @param identifier - A string identifier for logging
- * @param chainId - Chain ID to determine confirmation requirements
- * @param provider - WebSocket provider for waiting for confirmations
- * @param log - Logging function
- * @returns Object with settled flag, success status, and transaction hash, or null if reorged
  */
-export const handleOperationFailure = async <T extends { success: boolean }>(
-  eventLog: Log,
-  filter: Filter,
-  parseEvent: (log: Log) => T,
-  identifier: string,
-  chainId: CaipChainId,
-  provider: EvmRpc,
-  log: (...args: unknown[]) => void,
-  setTimeout: typeof globalThis.setTimeout = globalThis.setTimeout,
-  signal?: AbortSignal,
-): Promise<{ settled: true; txHash: string; success: boolean } | null> => {
+export const handleOperationFailure = async <T extends { success: boolean }>({
+  eventLog,
+  logFilter,
+  parseEvent,
+  identifier,
+  chainId,
+  signal,
+  powers: { provider, log, setTimeout = globalThis.setTimeout },
+}: HandleOperationFailureOpts<T>): Promise<{
+  settled: true;
+  txHash: string;
+  success: boolean;
+} | null> => {
   const txHash = eventLog.transactionHash;
 
   const confirmations = getConfirmationsRequired(chainId);
@@ -399,7 +408,7 @@ export const handleOperationFailure = async <T extends { success: boolean }>(
 
   // Fetch logs to verify the failure is still present
   const logsInBlock = await provider.getLogs({
-    ...filter,
+    ...logFilter,
     fromBlock: finalBlock,
     toBlock: finalBlock,
   });

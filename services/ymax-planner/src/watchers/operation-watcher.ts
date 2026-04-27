@@ -318,21 +318,19 @@ export const watchOperationResult = ({
           }
 
           // Event-level failure: wait for confirmations before declaring failure
-          const filter: Filter = {
+          const logFilter: Filter = {
             address: routerAddress,
             topics: [OPERATION_RESULT_SIGNATURE, expectedIdHash],
           };
-          const result = await handleOperationFailure(
-            operationResultLog,
-            filter,
-            parseOperationResultLog,
-            `expectedId=${txId}`,
+          const result = await handleOperationFailure({
+            eventLog: operationResultLog,
+            logFilter,
+            parseEvent: parseOperationResultLog,
+            identifier: `expectedId=${txId}`,
             chainId,
-            provider,
-            log,
-            setTimeout,
             signal,
-          );
+            powers: { provider, log, setTimeout },
+          });
 
           if (result) {
             return finish(result);
@@ -489,17 +487,15 @@ export const lookBackOperationResult = async ({
       }
 
       // Failure case: wait for confirmations before declaring failure
-      const result = await handleOperationFailure(
-        matchingEvent,
-        baseFilter,
-        parseOperationResultLog,
-        `txId=${txId}`,
+      const result = await handleOperationFailure({
+        eventLog: matchingEvent,
+        logFilter: baseFilter,
+        parseEvent: parseOperationResultLog,
+        identifier: `txId=${txId}`,
         chainId,
-        provider,
-        log,
-        setTimeout,
-        sharedSignal,
-      );
+        signal: sharedSignal,
+        powers: { provider, log, setTimeout },
+      });
       deleteTxBlockLowerBound(kvStore, txId);
       deleteTxBlockLowerBound(kvStore, txId, FAILED_TX_SCOPE);
 
