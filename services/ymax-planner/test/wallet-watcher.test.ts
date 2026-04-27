@@ -321,9 +321,7 @@ test('find a failed tx in MAKE_ACCOUNT lookback mode via trace_filter', async t 
         // Emit the correct block number so waitForBlock resolves deterministically
         on: (event: any, listener: Function) => {
           if (event === 'block') {
-            queueMicrotask(() =>
-              listener(latestBlock + blockNumberBuffer + 1),
-            );
+            queueMicrotask(() => listener(latestBlock + blockNumberBuffer + 1));
           }
         },
         // trace_filter uses provider.send()

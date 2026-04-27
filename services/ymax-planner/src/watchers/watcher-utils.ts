@@ -289,6 +289,20 @@ const waitForFinalConfirmations = async (
   return receipt;
 };
 
+export type HandleTxRevertOpts = {
+  receipt: TransactionReceipt;
+  txHash: string;
+  /** A string identifier for logging (e.g., "txId=tx1" or "expectedAddr=0x123"). */
+  identifier: string;
+  chainId: `${string}:${string}`;
+  signal?: AbortSignal;
+  powers: {
+    provider: EvmRpc;
+    log: (...args: unknown[]) => void;
+    setTimeout?: typeof globalThis.setTimeout;
+  };
+};
+
 /**
  * Handle receipt status for a transaction that has been validated as matching
  * the watcher's criteria. Returns the result to report to the caller.
@@ -296,25 +310,19 @@ const waitForFinalConfirmations = async (
  * This implements the finality protection pattern:
  * - Success (status 1): Return immediately without confirmations
  * - Failure (status 0): Wait for confirmations to ensure failure is permanent
- *
- * @param receipt - The transaction receipt to handle
- * @param txHash - Transaction hash for logging
- * @param identifier - A string identifier for logging (e.g., "txId=tx1" or "expectedAddr=0x123")
- * @param chainId - Chain ID to determine confirmation requirements
- * @param provider - EVM RPC provider for waiting for confirmations
- * @param log - Logging function
- * @returns Object with settled flag, success status, and transaction hash
  */
-export const handleTxRevert = async (
-  receipt: TransactionReceipt,
-  txHash: string,
-  identifier: string,
-  chainId: `${string}:${string}`,
-  provider: EvmRpc,
-  log: (...args: unknown[]) => void,
-  setTimeout: typeof globalThis.setTimeout = globalThis.setTimeout,
-  signal?: AbortSignal,
-): Promise<{ settled: true; txHash: string; success: boolean } | null> => {
+export const handleTxRevert = async ({
+  receipt,
+  txHash,
+  identifier,
+  chainId,
+  signal,
+  powers: { provider, log, setTimeout = globalThis.setTimeout },
+}: HandleTxRevertOpts): Promise<{
+  settled: true;
+  txHash: string;
+  success: boolean;
+} | null> => {
   await null;
   // TODO(https://github.com/Agoric/agoric-private/issues/783): also wait for confirmations on success cases — a reorg can flip
   // success → failure just as it can flip failure → success.
