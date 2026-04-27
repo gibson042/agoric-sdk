@@ -193,9 +193,8 @@ export const main = async (
       }
 
       const fetchAccount = async () => {
-        const account =
-          (await stargateQueryClient.getAccount(address)) ||
-          Fail`Account not found for address ${address}`;
+        const account = await stargateQueryClient.getAccount(address);
+        if (!account) throw Fail`Account not found for address ${address}`;
         return {
           address,
           accountNumber: BigInt(account.accountNumber),
