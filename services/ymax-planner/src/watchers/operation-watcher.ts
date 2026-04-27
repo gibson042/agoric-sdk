@@ -182,14 +182,21 @@ export const watchOperationResult = ({
     const ws = provider.websocket as WebSocket;
     let done = false;
     let subId: string | null = null;
-    const cleanups: ((err?: unknown) => void)[] = [];
+    const cleanups: (() => unknown)[] = [];
+    const doCleanup = async () => {
+      // Invoke all cleanups synchronously but report errors asynchronously.
+      for (const cleanup of cleanups) {
+        const result = (async () => cleanup())();
+        void result.catch(err => log('Error during cleanup:', err));
+      }
+    };
 
     const finish = (res: WatcherResult) => {
       if (done) return;
       done = true;
 
       resolve(res);
-      for (const cleanup of cleanups) cleanup();
+      void doCleanup();
     };
 
     /**
@@ -203,7 +210,7 @@ export const watchOperationResult = ({
       done = true;
 
       reject(err);
-      for (const cleanup of cleanups) cleanup();
+      void doCleanup();
     };
 
     const onWsError = (e: any) => {
@@ -345,14 +352,11 @@ export const watchOperationResult = ({
           hashesOnly: false,
         },
       ]);
-      cleanups.unshift(forFail => {
-        void Promise.resolve(undefined)
-          .then(() => provider.send('eth_unsubscribe', [subId]))
-          .catch(e => {
-            const detail = forFail ? ' during error cleanup' : '';
-            log(`Failed to unsubscribe${detail}:`, e);
-          });
-      });
+      cleanups.unshift(() =>
+        provider
+          .send('eth_unsubscribe', [subId])
+          .catch(e => log(`Failed to unsubscribe:`, e)),
+      );
       log(`Subscribed with subId=${subId} for router=${routerAddress}`);
     };
 
