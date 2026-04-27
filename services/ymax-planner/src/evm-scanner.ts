@@ -558,7 +558,7 @@ export type WaitForConfirmationsOpts = {
   meanBlockTimeMs?: number;
   pollIntervalMs?: number;
   signal?: AbortSignal;
-  setTimeout?: typeof globalThis.setTimeout;
+  setTimeout: typeof globalThis.setTimeout;
   log?: (...args: unknown[]) => void;
 };
 
@@ -569,7 +569,7 @@ export const waitForConfirmations = async ({
   meanBlockTimeMs,
   pollIntervalMs = DEFAULT_CONFIRMATION_POLL_INTERVAL_MS,
   signal,
-  setTimeout = globalThis.setTimeout,
+  setTimeout,
   log = () => {},
 }: WaitForConfirmationsOpts): Promise<TransactionReceipt | null> => {
   const makeAbortController = prepareAbortController({ setTimeout });

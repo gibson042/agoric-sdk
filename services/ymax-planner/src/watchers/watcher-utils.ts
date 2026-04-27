@@ -238,7 +238,7 @@ export const fetchReceiptWithRetry = async (
   txHash: string,
   log: (...args: unknown[]) => void,
   retryOptions: RetryOptions = DEFAULT_RETRY_OPTIONS,
-  setTimeout: typeof globalThis.setTimeout = globalThis.setTimeout,
+  setTimeout: typeof globalThis.setTimeout,
 ) => {
   const { limit, backoffLimit } = retryOptions;
   let receipt = await provider.getTransactionReceipt(txHash);
@@ -272,7 +272,7 @@ const waitForFinalConfirmations = async (
   chainId: CaipChainId,
   provider: EvmRpc,
   log: (...args: unknown[]) => void,
-  setTimeout: typeof globalThis.setTimeout = globalThis.setTimeout,
+  setTimeout: typeof globalThis.setTimeout,
   signal?: AbortSignal,
 ): Promise<TransactionReceipt | null> => {
   const receipt = await waitForConfirmations({
@@ -302,7 +302,7 @@ export type HandleTxRevertOpts = {
   powers: {
     provider: EvmRpc;
     log: (...args: unknown[]) => void;
-    setTimeout?: typeof globalThis.setTimeout;
+    setTimeout: typeof globalThis.setTimeout;
   };
 };
 
@@ -320,7 +320,7 @@ export const handleTxRevert = async ({
   identifier,
   chainId,
   signal,
-  powers: { provider, log, setTimeout = globalThis.setTimeout },
+  powers: { provider, log, setTimeout },
 }: HandleTxRevertOpts): Promise<{
   settled: true;
   txHash: string;
@@ -365,7 +365,7 @@ export type HandleOperationFailureOpts<T extends { success: boolean }> = {
   powers: {
     provider: EvmRpc;
     log: (...args: unknown[]) => void;
-    setTimeout?: typeof globalThis.setTimeout;
+    setTimeout: typeof globalThis.setTimeout;
   };
 };
 
@@ -383,7 +383,7 @@ export const handleOperationFailure = async <T extends { success: boolean }>({
   parseEvent,
   chainId,
   signal,
-  powers: { provider, log, setTimeout = globalThis.setTimeout },
+  powers: { provider, log, setTimeout },
 }: HandleOperationFailureOpts<T>): Promise<{
   settled: true;
   txHash: string;
