@@ -2,7 +2,7 @@ import { WebSocketProvider, Log, toQuantity, isError } from 'ethers';
 import type { Filter, TransactionReceipt, TransactionResponse } from 'ethers';
 import type { Address as EvmAddress } from 'viem';
 import type { CaipChainId } from '@agoric/orchestration';
-import { getBlockTimeMs } from './support.ts';
+import { getBlockTimeMs, prepareAbortController } from './support.ts';
 
 export type WatcherTimeoutOptions = {
   timeoutMs?: number;
@@ -557,27 +557,6 @@ export type WaitForConfirmationsOpts = {
   log?: (...args: unknown[]) => void;
 };
 
-const sleepRespectingAbort = (
-  ms: number,
-  setTimeout: typeof globalThis.setTimeout,
-  signal?: AbortSignal,
-): Promise<void> =>
-  new Promise(resolve => {
-    if (signal?.aborted) {
-      resolve();
-      return;
-    }
-    const timeoutId = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timeoutId);
-      resolve();
-    };
-    signal?.addEventListener('abort', onAbort, { once: true });
-  });
-
 export const waitForConfirmations = async ({
   provider,
   txHash,
@@ -587,6 +566,8 @@ export const waitForConfirmations = async ({
   setTimeout = globalThis.setTimeout,
   log = () => {},
 }: WaitForConfirmationsOpts): Promise<TransactionReceipt | null> => {
+  const makeAbortController = prepareAbortController({ setTimeout });
+  const racingSignals = signal ? [signal] : undefined;
   await null;
   let everSeenReceipt = false;
   while (true) {
@@ -606,6 +587,13 @@ export const waitForConfirmations = async ({
       return null;
     }
 
-    await sleepRespectingAbort(pollIntervalMs, setTimeout, signal);
+    await new Promise(resolve => {
+      const timeoutSignal = makeAbortController(
+        pollIntervalMs,
+        racingSignals,
+      ).signal;
+      if (timeoutSignal.aborted) return resolve(undefined);
+      timeoutSignal.addEventListener('abort', () => resolve(undefined));
+    });
   }
 };
