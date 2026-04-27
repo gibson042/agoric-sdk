@@ -602,7 +602,7 @@ export const waitForConfirmations = async ({
         `Waiting for more confirmations: txHash=${txHash} observed=${confirmationCount} of ${minConfirmations} currentBlock=${currentBlock} receiptBlock=${receipt.blockNumber}`,
       );
     } else if (everSeenReceipt) {
-      log(`Transaction ${txHash} receipt disappeared - likely reorged out`);
+      log(`Transaction ${txHash} receipt disappeared - likely lost in a reorg`);
       return null;
     }
 
