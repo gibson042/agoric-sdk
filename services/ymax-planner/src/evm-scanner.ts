@@ -571,7 +571,7 @@ export const waitForConfirmations = async ({
   log = () => {},
 }: WaitForConfirmationsOpts): Promise<TransactionReceipt | null> => {
   const makeAbortController = prepareAbortController({ setTimeout });
-  const racingSignals = signal ? [signal] : undefined;
+
   await null;
   let everSeenReceipt = false;
   while (true) {
@@ -598,7 +598,10 @@ export const waitForConfirmations = async ({
     }
 
     await new Promise(resolve => {
-      const timeoutSignal = makeAbortController(sleepMs, racingSignals).signal;
+      const { signal: timeoutSignal } = makeAbortController(
+        sleepMs,
+        signal ? [signal] : undefined,
+      );
       if (timeoutSignal.aborted) return resolve(undefined);
       timeoutSignal.addEventListener('abort', () => resolve(undefined));
     });
