@@ -276,7 +276,7 @@ const waitForFinalConfirmations = async (
   const receipt = await waitForConfirmations({
     provider,
     txHash,
-    confirmations,
+    minConfirmations: confirmations,
     setTimeout,
     signal,
     log,

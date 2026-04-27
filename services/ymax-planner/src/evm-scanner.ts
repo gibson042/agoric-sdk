@@ -550,7 +550,7 @@ export const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000;
 export type WaitForConfirmationsOpts = {
   provider: EvmRpc;
   txHash: string;
-  confirmations: number;
+  minConfirmations: number;
   pollIntervalMs?: number;
   signal?: AbortSignal;
   setTimeout?: typeof globalThis.setTimeout;
@@ -581,7 +581,7 @@ const sleepRespectingAbort = (
 export const waitForConfirmations = async ({
   provider,
   txHash,
-  confirmations,
+  minConfirmations,
   pollIntervalMs = DEFAULT_CONFIRMATION_POLL_INTERVAL_MS,
   signal,
   setTimeout = globalThis.setTimeout,
@@ -596,10 +596,10 @@ export const waitForConfirmations = async ({
     if (receipt) {
       everSeenReceipt = true;
       const currentBlock = await provider.getBlockNumber();
-      const observed = currentBlock - receipt.blockNumber + 1;
-      if (observed >= confirmations) return receipt;
+      const confirmationCount = currentBlock - receipt.blockNumber + 1;
+      if (confirmationCount >= minConfirmations) return receipt;
       log(
-        `Waiting for confirmations: txHash=${txHash} observed=${observed}/${confirmations} currentBlock=${currentBlock} receiptBlock=${receipt.blockNumber}`,
+        `Waiting for more confirmations: txHash=${txHash} observed=${confirmationCount} of ${minConfirmations} currentBlock=${currentBlock} receiptBlock=${receipt.blockNumber}`,
       );
     } else if (everSeenReceipt) {
       log(`Transaction ${txHash} receipt disappeared - likely reorged out`);
