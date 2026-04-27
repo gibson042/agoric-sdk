@@ -551,6 +551,11 @@ export type WaitForConfirmationsOpts = {
   provider: EvmRpc;
   txHash: string;
   minConfirmations: number;
+  /**
+   * If set, the wait between polls is extended to the estimated time until the
+   * remaining confirmations have accrued, avoiding pointless RPC round-trips.
+   */
+  meanBlockTimeMs?: number;
   pollIntervalMs?: number;
   signal?: AbortSignal;
   setTimeout?: typeof globalThis.setTimeout;
@@ -561,6 +566,7 @@ export const waitForConfirmations = async ({
   provider,
   txHash,
   minConfirmations,
+  meanBlockTimeMs,
   pollIntervalMs = DEFAULT_CONFIRMATION_POLL_INTERVAL_MS,
   signal,
   setTimeout = globalThis.setTimeout,
@@ -573,6 +579,7 @@ export const waitForConfirmations = async ({
   while (true) {
     if (signal?.aborted) return null;
 
+    let sleepMs = pollIntervalMs;
     const receipt = await provider.getTransactionReceipt(txHash);
     if (receipt) {
       everSeenReceipt = true;
@@ -582,16 +589,20 @@ export const waitForConfirmations = async ({
       log(
         `Waiting for more confirmations: txHash=${txHash} observed=${confirmationCount} of ${minConfirmations} currentBlock=${currentBlock} receiptBlock=${receipt.blockNumber}`,
       );
+      if (meanBlockTimeMs) {
+        const confirmationsStillNeeded = minConfirmations - confirmationCount;
+        sleepMs = Math.max(
+          pollIntervalMs,
+          (confirmationsStillNeeded + 1) * meanBlockTimeMs,
+        );
+      }
     } else if (everSeenReceipt) {
       log(`Transaction ${txHash} receipt disappeared - likely lost in a reorg`);
       return null;
     }
 
     await new Promise(resolve => {
-      const timeoutSignal = makeAbortController(
-        pollIntervalMs,
-        racingSignals,
-      ).signal;
+      const timeoutSignal = makeAbortController(sleepMs, racingSignals).signal;
       if (timeoutSignal.aborted) return resolve(undefined);
       timeoutSignal.addEventListener('abort', () => resolve(undefined));
     });

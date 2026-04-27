@@ -6,6 +6,7 @@ import { decodeAbiParameters } from 'viem';
 import type { EvmRpc } from '../evm-scanner.ts';
 import { waitForConfirmations } from '../evm-scanner.ts';
 import {
+  getBlockTimeMs,
   getConfirmationsRequired,
   getRevertConfirmationsRequired,
 } from '../support.ts';
@@ -268,6 +269,7 @@ export const fetchReceiptWithRetry = async (
 const waitForFinalConfirmations = async (
   txHash: string,
   confirmations: number,
+  chainId: CaipChainId,
   provider: EvmRpc,
   log: (...args: unknown[]) => void,
   setTimeout: typeof globalThis.setTimeout = globalThis.setTimeout,
@@ -277,6 +279,7 @@ const waitForFinalConfirmations = async (
     provider,
     txHash,
     minConfirmations: confirmations,
+    meanBlockTimeMs: getBlockTimeMs(chainId),
     setTimeout,
     signal,
     log,
@@ -332,6 +335,7 @@ export const handleTxRevert = async ({
   const confirmedReceipt = await waitForFinalConfirmations(
     txHash,
     confirmations,
+    chainId,
     provider,
     log,
     setTimeout,
@@ -397,6 +401,7 @@ export const handleOperationFailure = async <T extends { success: boolean }>({
   const confirmedReceipt = await waitForFinalConfirmations(
     txHash,
     confirmations,
+    chainId,
     provider,
     log,
     setTimeout,
