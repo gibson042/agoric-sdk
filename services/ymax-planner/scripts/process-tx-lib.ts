@@ -52,7 +52,7 @@ export const processTx = async (
     env = process.env,
     fetch = globalThis.fetch,
     generateInterval = timersPromises.setInterval,
-    _now = Date.now,
+    now = globalThis.performance.now.bind(globalThis.performance),
     setTimeout = globalThis.setTimeout,
     connectWithSigner = SigningStargateClient.connectWithSigner,
     AbortController = globalThis.AbortController,
@@ -60,7 +60,6 @@ export const processTx = async (
     WebSocket = ws.WebSocket,
   } = {},
 ) => {
-  void _now;
   console.log(`\n🔍 Resolving transaction: ${txId}\n`);
 
   const maybeOpts = cliArgs;
@@ -184,7 +183,7 @@ export const processTx = async (
         retryProviders,
         fetch,
         setTimeout,
-        now: Date.now,
+        now,
         kvStore,
         makeAbortController,
         log: (...args) => console.log('[TX]', ...args),

@@ -384,7 +384,8 @@ export const mockEvmCtx = {
   retryProviders: defaultMockProviders.retryProviders,
   kvStore: makeKVStoreFromMap(new Map()),
   setTimeout: globalThis.setTimeout,
-  now: Date.now,
+  // XXX `now` should be mocked rather than real.
+  now: globalThis.performance.now.bind(globalThis.performance),
   makeAbortController,
   axelarApiUrl: mockAxelarApiAddress,
   ydsNotifier: {
@@ -470,7 +471,8 @@ export const createMockPendingTxOpts = (
     retryProviders,
     fetch: async () => ({ ok: true, json: async () => ({}) }) as Response,
     setTimeout: globalThis.setTimeout,
-    now: Date.now,
+    // XXX `now` should be mocked rather than real.
+    now: globalThis.performance.now.bind(globalThis.performance),
     marshaller: boardSlottingMarshaller(),
     signingSmartWalletKit: createMockSigningSmartWalletKit(),
     ydsNotifier: {

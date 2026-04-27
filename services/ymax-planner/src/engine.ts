@@ -185,7 +185,8 @@ export type Powers = {
     messageId: string | number,
     retryOpts?: RetryOptionsAndPowers,
   ) => ReturnType<typeof getInvocationUpdate>;
-  now: typeof Date.now;
+  /** Prefer monotonicity (e.g., `performance.now` rather than `Date.now`). */
+  now: () => number;
   gasEstimator: GasEstimator;
   usdcTokensByChain: Partial<Record<SupportedChain, string>>;
   chainNameToChainIdMap: Partial<Record<EvmChain, CaipChainId>>;

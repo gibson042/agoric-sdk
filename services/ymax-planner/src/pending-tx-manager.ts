@@ -54,6 +54,7 @@ export type EvmContext = {
   signingSmartWalletKit: SigningSmartWalletKit;
   fetch: typeof fetch;
   setTimeout: typeof globalThis.setTimeout;
+  /** Prefer monotonicity (e.g., `performance.now` rather than `Date.now`). */
   now: () => number;
   kvStore: KVStore;
   makeAbortController: MakeAbortController;
