@@ -105,6 +105,7 @@ export const createMockEnginePowers = (): EnginePowers => ({
   walletStore: {} as any,
   getWalletInvocationUpdate: async () => undefined,
   now: () => NaN,
+  setTimeout: globalThis.setTimeout,
   gasEstimator: {} as any,
   usdcTokensByChain: {},
   chainNameToChainIdMap: CaipChainIds.testnet,

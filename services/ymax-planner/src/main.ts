@@ -295,6 +295,7 @@ export const main = async (
       ...evmCtx,
     },
     rpc,
+    setTimeout,
     spectrumChainIds,
     evmTokenAddresses,
     spectrumBlockchain,
@@ -327,4 +328,5 @@ export const main = async (
     });
   });
 };
+
 harden(main);
