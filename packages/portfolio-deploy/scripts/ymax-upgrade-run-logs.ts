@@ -17,7 +17,7 @@ Options:
   --address <bech32>           Override ymaxControl address
   --tx-hash <hash>             Use a specific tx hash instead of latest sender tx
   --namespace <name>           Kubernetes namespace label (default: network)
-  --pod <name>                 Pod name filter (default: validator-0 on devnet)
+  --pod <name>                 Pod name filter (default: validator-primary-0 on devnet)
   --pretty                     Print a single pretty JSON object instead of NDJSON
   --tx-limit <n>               Recent txs to inspect from sender (default: 20)
   --window-minutes <n>         Minutes before/after tx time for log query (default: 15)
@@ -324,7 +324,7 @@ const queryGrafana = async ({
 const toIso = (ms: number) => new Date(ms).toISOString();
 
 const defaultPodForNetwork = (network: Network) =>
-  network === 'devnet' ? 'validator-0' : undefined;
+  network === 'devnet' ? 'validator-primary-0' : undefined;
 
 const main = async (argv = process.argv) => {
   const { values } = parseArgs({ args: argv.slice(2), options });
