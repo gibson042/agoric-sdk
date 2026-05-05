@@ -50,6 +50,9 @@ export interface ChainSpec {
   readonly deltaSoftMin?: NatValue;
 }
 
+type BlockDepositReason = 'AT_CAPACITY';
+type BlockWithdrawReason = 'LOW_LIQUIDITY';
+
 // Pools (leaves)
 export interface PoolSpec {
   readonly pool: PoolKey;
@@ -57,6 +60,10 @@ export interface PoolSpec {
   readonly chain: SupportedChain;
   /** protocol of the corresponding instrument */
   readonly protocol: YieldProtocol;
+  /** when increases are unavailable, the (primary) reason why */
+  readonly blockDepositReason?: BlockDepositReason;
+  /** when decreases are unavailable, the (primary) reason why */
+  readonly blockWithdrawReason?: BlockWithdrawReason;
 }
 
 /**
